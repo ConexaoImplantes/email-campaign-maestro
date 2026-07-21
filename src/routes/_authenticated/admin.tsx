@@ -7,6 +7,8 @@ import {
   adminListUsers,
   adminUpdateLimits,
   adminSaveUserSmtp,
+  adminApproveUser,
+  adminRejectUser,
   isAdmin,
 } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,9 @@ import {
   Shield,
   Pencil,
   Server,
+  CheckCircle2,
+  Ban,
+  Clock,
 } from "lucide-react";
 
 const adminGuardQuery = queryOptions({
@@ -106,8 +111,24 @@ function AdminPage() {
   const qc = useQueryClient();
   const saveLimits = useServerFn(adminUpdateLimits);
   const saveSmtp = useServerFn(adminSaveUserSmtp);
+  const approve = useServerFn(adminApproveUser);
+  const reject = useServerFn(adminRejectUser);
 
+  const pending = users.filter((u) => u.status === "pending");
   const pct = stats.totalLimit > 0 ? Math.min(100, Math.round((stats.usedToday / stats.totalLimit) * 100)) : 0;
+
+  async function handleApprove(userId: string, daily_limit: number) {
+    await approve({ data: { user_id: userId, daily_limit } });
+    toast.success("Usuário aprovado");
+    qc.invalidateQueries({ queryKey: ["admin-users"] });
+    qc.invalidateQueries({ queryKey: ["admin-global-stats"] });
+  }
+  async function handleReject(userId: string) {
+    await reject({ data: { user_id: userId } });
+    toast.success("Usuário rejeitado");
+    qc.invalidateQueries({ queryKey: ["admin-users"] });
+  }
+
 
   return (
     <div className="space-y-8">
@@ -149,6 +170,34 @@ function AdminPage() {
         </div>
         <Progress value={pct} className="h-2" />
       </section>
+
+      <section>
+        <div className="flex items-center gap-2 mb-3">
+          <Clock className="h-4 w-4 text-brand-accent" />
+          <h2 className="text-lg font-semibold">Aprovações pendentes</h2>
+          {pending.length > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded bg-brand-accent/20 text-brand-accent">
+              {pending.length}
+            </span>
+          )}
+        </div>
+        <div className="rounded-xl bg-brand-surface overflow-hidden divide-y divide-brand-surface-hover/40">
+          {pending.length === 0 && (
+            <div className="p-6 text-center text-muted-foreground text-sm">
+              Nenhum cadastro aguardando aprovação.
+            </div>
+          )}
+          {pending.map((u) => (
+            <PendingRow
+              key={u.id}
+              user={u}
+              onApprove={(limit) => handleApprove(u.id, limit)}
+              onReject={() => handleReject(u.id)}
+            />
+          ))}
+        </div>
+      </section>
+
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Usuários da plataforma</h2>
@@ -232,13 +281,14 @@ function UserRow({
   return (
     <div className="grid grid-cols-12 gap-3 px-4 py-4 items-center border-b border-brand-surface-hover/30 last:border-0">
       <div className="col-span-4 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <p className="font-medium truncate">{user.email ?? user.id.slice(0, 8)}</p>
           {user.is_admin && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-accent/20 text-brand-accent uppercase tracking-wider">
               Admin
             </span>
           )}
+          <StatusBadge status={user.status} />
         </div>
         <p className="text-xs text-muted-foreground truncate">{user.smtp_user ?? "sem SMTP"}</p>
       </div>
@@ -397,5 +447,89 @@ function SmtpDialog({
         </DialogFooter>
       </form>
     </DialogContent>
+  );
+}
+
+function StatusBadge({ status }: { status: AdminUser["status"] }) {
+  const map = {
+    approved: { label: "Aprovado", cls: "bg-brand-success/20 text-brand-success" },
+    pending: { label: "Pendente", cls: "bg-brand-accent/20 text-brand-accent" },
+    rejected: { label: "Rejeitado", cls: "bg-brand-error/20 text-brand-error" },
+  } as const;
+  const s = map[status];
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+
+function PendingRow({
+  user,
+  onApprove,
+  onReject,
+}: {
+  user: AdminUser;
+  onApprove: (limit: number) => Promise<void>;
+  onReject: () => Promise<void>;
+}) {
+  const [limit, setLimit] = useState(user.daily_limit || 300);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex items-center justify-between gap-4 p-4 flex-wrap">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium truncate">{user.email ?? user.id.slice(0, 8)}</p>
+        <p className="text-xs text-muted-foreground">
+          Cadastrado em {new Date(user.created_at).toLocaleString("pt-BR")}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Label htmlFor={`pl-${user.id}`} className="text-xs text-muted-foreground">
+          Cota/dia
+        </Label>
+        <Input
+          id={`pl-${user.id}`}
+          type="number"
+          min={1}
+          value={limit}
+          onChange={(e) => setLimit(Number(e.target.value))}
+          className="h-9 w-24"
+        />
+        <Button
+          size="sm"
+          disabled={busy || limit < 1}
+          className="gradient-brand text-primary-foreground"
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await onApprove(limit);
+            } catch (e) {
+              toast.error("Falha", { description: (e as Error).message });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <CheckCircle2 className="h-4 w-4 mr-1" /> Aprovar
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await onReject();
+            } catch (e) {
+              toast.error("Falha", { description: (e as Error).message });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Ban className="h-4 w-4 mr-1 text-brand-error" /> Rejeitar
+        </Button>
+      </div>
+    </div>
   );
 }

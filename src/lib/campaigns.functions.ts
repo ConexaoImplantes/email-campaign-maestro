@@ -11,7 +11,7 @@ export const getProfile = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("profiles")
       .select(
-        "id, email, smtp_host, smtp_port, smtp_user, from_name, daily_limit, emails_sent_today, last_reset_date, smtp_pass_encrypted",
+        "id, email, smtp_host, smtp_port, smtp_user, from_name, daily_limit, emails_sent_today, last_reset_date, smtp_pass_encrypted, status",
       )
       .eq("id", userId)
       .maybeSingle();
@@ -27,8 +27,21 @@ export const getProfile = createServerFn({ method: "GET" })
       emails_sent_today: data?.emails_sent_today ?? 0,
       last_reset_date: data?.last_reset_date ?? null,
       smtp_configured: Boolean(data?.smtp_pass_encrypted),
+      status: (data?.status ?? "pending") as "pending" | "approved" | "rejected",
     };
   });
+
+async function assertApproved(supabase: any, userId: string) {
+  const { data } = await supabase.from("profiles").select("status").eq("id", userId).maybeSingle();
+  const status = data?.status ?? "pending";
+  if (status !== "approved") {
+    throw new Error(
+      status === "rejected"
+        ? "Seu acesso foi rejeitado pelo Super Admin."
+        : "Sua conta está aguardando aprovação do Super Admin.",
+    );
+  }
+}
 
 const smtpInput = z.object({
   smtp_host: z.string().min(1).max(200),
@@ -117,6 +130,7 @@ export const createCampaign = createServerFn({ method: "POST" })
   .inputValidator((v) => createCampaignInput.parse(v))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    await assertApproved(supabase, userId);
     const { data: camp, error } = await supabase
       .from("campaigns")
       .insert({
@@ -171,6 +185,7 @@ export const setCampaignStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (data.status === "processing") await assertApproved(supabase, userId);
     const { error } = await supabase
       .from("campaigns")
       .update({ status: data.status })
