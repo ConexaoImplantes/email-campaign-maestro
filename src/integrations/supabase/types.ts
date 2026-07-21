@@ -104,6 +104,7 @@ export type Database = {
           smtp_pass_encrypted: string | null
           smtp_port: number
           smtp_user: string | null
+          status: string
           updated_at: string
         }
         Insert: {
@@ -118,6 +119,7 @@ export type Database = {
           smtp_pass_encrypted?: string | null
           smtp_port?: number
           smtp_user?: string | null
+          status?: string
           updated_at?: string
         }
         Update: {
@@ -132,6 +134,7 @@ export type Database = {
           smtp_pass_encrypted?: string | null
           smtp_port?: number
           smtp_user?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: []
