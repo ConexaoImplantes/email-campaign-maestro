@@ -7,6 +7,8 @@ import {
   adminListUsers,
   adminUpdateLimits,
   adminSaveUserSmtp,
+  adminApproveUser,
+  adminRejectUser,
   isAdmin,
 } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
