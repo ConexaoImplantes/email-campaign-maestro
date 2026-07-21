@@ -301,6 +301,7 @@ function UserRow({
   user,
   onSaveLimit,
   onSaveSmtp,
+  onResetUsage,
 }: {
   user: AdminUser;
   onSaveLimit: (limit: number) => Promise<void>;
@@ -311,6 +312,7 @@ function UserRow({
     smtp_pass?: string;
     from_name?: string | null;
   }) => Promise<void>;
+  onResetUsage: () => Promise<void>;
 }) {
   const [limit, setLimit] = useState(user.daily_limit);
   const [savingLimit, setSavingLimit] = useState(false);
