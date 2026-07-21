@@ -84,9 +84,40 @@ export const adminListUsers = createServerFn({ method: "GET" })
       emails_sent_today: p.emails_sent_today,
       last_reset_date: p.last_reset_date,
       created_at: p.created_at,
+      status: (p.status ?? "pending") as "pending" | "approved" | "rejected",
       is_admin: adminSet.has(p.id),
       stats: stats[p.id] ?? { campaigns: 0, sent: 0, failed: 0, opened: 0 },
     }));
+  });
+
+export const adminApproveUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) =>
+    z.object({ user_id: z.string().uuid(), daily_limit: z.number().int().min(1).max(100000) }).parse(v),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ status: "approved", daily_limit: data.daily_limit })
+      .eq("id", data.user_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const adminRejectUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) => z.object({ user_id: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ status: "rejected" })
+      .eq("id", data.user_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const adminUpdateLimits = createServerFn({ method: "POST" })
