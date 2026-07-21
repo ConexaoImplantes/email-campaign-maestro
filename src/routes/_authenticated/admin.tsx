@@ -9,6 +9,7 @@ import {
   adminSaveUserSmtp,
   adminApproveUser,
   adminRejectUser,
+  adminResetDailyUsage,
   isAdmin,
 } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
