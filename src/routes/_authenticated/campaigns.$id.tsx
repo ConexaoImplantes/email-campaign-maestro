@@ -1,0 +1,163 @@
+import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getCampaign, getRecipients, setCampaignStatus } from "@/lib/campaigns.functions";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
+import { Play, Pause } from "lucide-react";
+
+const campaignQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["campaign", id],
+    queryFn: () => getCampaign({ data: { id } }),
+  });
+const recipientsQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["recipients", id],
+    queryFn: () => getRecipients({ data: { campaign_id: id } }),
+    refetchInterval: 5000,
+  });
+
+export const Route = createFileRoute("/_authenticated/campaigns/$id")({
+  head: ({ loaderData }) => ({
+    meta: [
+      { title: `${loaderData?.title ?? "Campanha"} — Conexão Implantes` },
+      { name: "description", content: "Detalhes, progresso e destinatários da campanha." },
+      { property: "og:title", content: `${loaderData?.title ?? "Campanha"} — Conexão Implantes` },
+      { property: "og:description", content: "Detalhes, progresso e destinatários da campanha." },
+    ],
+  }),
+  loader: async ({ context, params }) => {
+    const c = await context.queryClient.ensureQueryData(campaignQuery(params.id));
+    if (!c) throw notFound();
+    await context.queryClient.ensureQueryData(recipientsQuery(params.id));
+    return c;
+  },
+  errorComponent: ({ error, reset }) => (
+    <div>
+      <p className="text-destructive">Erro: {error.message}</p>
+      <Button onClick={reset} className="mt-3">Tentar novamente</Button>
+    </div>
+  ),
+  notFoundComponent: () => <p className="text-muted-foreground">Campanha não encontrada.</p>,
+  component: CampaignDetail,
+});
+
+function CampaignDetail() {
+  const { id } = Route.useParams();
+  const router = useRouter();
+  const { data: c } = useSuspenseQuery(campaignQuery(id));
+  const { data: recipients } = useSuspenseQuery(recipientsQuery(id));
+  const setStatus = useServerFn(setCampaignStatus);
+  if (!c) return null;
+
+  const sent = recipients.filter((r) => r.status === "sent").length;
+  const failed = recipients.filter((r) => r.status === "failed").length;
+  const opened = recipients.filter((r) => r.opened_at).length;
+  const pending = recipients.filter((r) => r.status === "pending").length;
+  const total = recipients.length || 1;
+  const progressPct = Math.round(((sent + failed) / total) * 100);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold">{c.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{c.subject}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={c.status as string} />
+          {c.status === "draft" || c.status === "paused" ? (
+            <Button
+              size="sm"
+              className="gradient-brand text-primary-foreground"
+              onClick={async () => {
+                await setStatus({ data: { id, status: "processing" } });
+                toast.success("Envio iniciado");
+                router.invalidate();
+              }}
+            >
+              <Play className="h-4 w-4 mr-1" /> Iniciar
+            </Button>
+          ) : c.status === "processing" ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={async () => {
+                await setStatus({ data: { id, status: "paused" } });
+                toast.success("Campanha pausada");
+                router.invalidate();
+              }}
+            >
+              <Pause className="h-4 w-4 mr-1" /> Pausar
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <section className="rounded-xl bg-brand-surface p-6">
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-muted-foreground">Progresso</span>
+          <span className="font-medium">{sent + failed} / {recipients.length}</span>
+        </div>
+        <Progress value={progressPct} className="h-2" />
+        <div className="grid grid-cols-4 gap-4 mt-6 text-center">
+          <div><p className="text-2xl font-semibold">{sent}</p><p className="text-xs text-muted-foreground">Enviados</p></div>
+          <div><p className="text-2xl font-semibold text-brand-success">{opened}</p><p className="text-xs text-muted-foreground">Abertos</p></div>
+          <div><p className="text-2xl font-semibold text-brand-error">{failed}</p><p className="text-xs text-muted-foreground">Falhas</p></div>
+          <div><p className="text-2xl font-semibold text-brand-warning">{pending}</p><p className="text-xs text-muted-foreground">Pendentes</p></div>
+        </div>
+      </section>
+
+      <section className="rounded-xl bg-brand-surface overflow-hidden">
+        <div className="max-h-[500px] overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-brand-surface z-10">
+              <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Nome</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Aberto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-surface-hover/40">
+              {recipients.map((r) => (
+                <tr key={r.id} className="hover:bg-brand-surface-hover/20">
+                  <td className="px-4 py-2">{r.email}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{r.name ?? "—"}</td>
+                  <td className="px-4 py-2"><RecipientStatus status={r.status} error={r.error_message} /></td>
+                  <td className="px-4 py-2 text-muted-foreground">{r.opened_at ? "Sim" : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    draft: { label: "Rascunho", cls: "bg-brand-badge-bg text-muted-foreground" },
+    processing: { label: "Enviando", cls: "bg-brand-warning/20 text-brand-warning" },
+    paused: { label: "Pausada", cls: "bg-brand-badge-bg text-muted-foreground" },
+    completed: { label: "Concluída", cls: "bg-brand-success/20 text-brand-success" },
+    failed: { label: "Falhou", cls: "bg-brand-error/20 text-brand-error" },
+  };
+  const v = map[status] ?? map.draft;
+  return <span className={`text-xs px-2 py-1 rounded-md font-medium ${v.cls}`}>{v.label}</span>;
+}
+function RecipientStatus({ status, error }: { status: string; error: string | null }) {
+  const map: Record<string, string> = {
+    pending: "bg-brand-badge-bg text-muted-foreground",
+    sent: "bg-brand-success/20 text-brand-success",
+    failed: "bg-brand-error/20 text-brand-error",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${map[status] ?? map.pending}`} title={error ?? undefined}>
+      {status === "pending" ? "Pendente" : status === "sent" ? "Enviado" : "Falhou"}
+    </span>
+  );
+}

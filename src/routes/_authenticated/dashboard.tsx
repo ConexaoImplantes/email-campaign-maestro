@@ -1,0 +1,175 @@
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  getDashboardStats,
+  getProfile,
+  listCampaigns,
+  deleteCampaign,
+} from "@/lib/campaigns.functions";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Send, XCircle, Eye, MailCheck, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+
+const statsQuery = queryOptions({
+  queryKey: ["dashboard-stats"],
+  queryFn: () => getDashboardStats(),
+});
+const profileQuery = queryOptions({
+  queryKey: ["profile"],
+  queryFn: () => getProfile(),
+});
+const campaignsQuery = queryOptions({
+  queryKey: ["campaigns"],
+  queryFn: () => listCampaigns(),
+});
+
+export const Route = createFileRoute("/_authenticated/dashboard")({
+  head: () => ({
+    meta: [
+      { title: "Dashboard — Conexão Implantes" },
+      { name: "description", content: "Acompanhe envios, aberturas e cota diária das suas campanhas." },
+      { property: "og:title", content: "Dashboard — Conexão Implantes" },
+      { property: "og:description", content: "Acompanhe envios, aberturas e cota diária das suas campanhas." },
+    ],
+  }),
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(statsQuery),
+      context.queryClient.ensureQueryData(profileQuery),
+      context.queryClient.ensureQueryData(campaignsQuery),
+    ]),
+  errorComponent: ({ error, reset }) => (
+    <div className="rounded-lg bg-brand-surface p-6">
+      <p className="text-destructive">Erro: {error.message}</p>
+      <Button onClick={reset} className="mt-3">Tentar novamente</Button>
+    </div>
+  ),
+  component: Dashboard,
+});
+
+function StatCard({ icon: Icon, label, value, tone }: { icon: typeof Send; label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-xl bg-brand-surface p-5 border border-transparent card-hover-glow">
+      <div className="flex items-center gap-3">
+        <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${tone ?? "gradient-brand text-primary-foreground"}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
+          <p className="text-2xl font-semibold">{value}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard() {
+  const router = useRouter();
+  const { data: stats } = useSuspenseQuery(statsQuery);
+  const { data: profile } = useSuspenseQuery(profileQuery);
+  const { data: campaigns } = useSuspenseQuery(campaignsQuery);
+  const del = useServerFn(deleteCampaign);
+
+  const pct = Math.min(100, Math.round((stats.usedToday / stats.dailyLimit) * 100));
+
+  return (
+    <div className="space-y-8">
+      {!profile.smtp_configured && (
+        <div className="flex items-start gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
+          <AlertTriangle className="h-5 w-5 text-yellow-400 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">Configure seu SMTP</p>
+            <p className="text-sm text-muted-foreground">
+              É necessário salvar as credenciais SMTP antes de disparar campanhas.
+            </p>
+          </div>
+          <Link to="/settings">
+            <Button size="sm" className="gradient-brand text-primary-foreground">Configurar</Button>
+          </Link>
+        </div>
+      )}
+
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-semibold">Dashboard</h1>
+            <p className="text-sm text-muted-foreground">Visão geral das campanhas e cota diária.</p>
+          </div>
+          <Link to="/campaigns/new">
+            <Button className="gradient-brand text-primary-foreground">
+              <Plus className="mr-1 h-4 w-4" /> Nova campanha
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard icon={Send} label="Enviados" value={stats.sent.toString()} />
+          <StatCard icon={XCircle} label="Falharam" value={stats.failed.toString()} tone="bg-brand-error/20 text-brand-error" />
+          <StatCard icon={Eye} label="Aberturas" value={stats.opened.toString()} tone="bg-brand-success/20 text-brand-success" />
+          <StatCard icon={MailCheck} label="Taxa de abertura" value={`${stats.openRate.toFixed(1)}%`} />
+        </div>
+      </section>
+
+      <section className="rounded-xl bg-brand-surface p-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold">Cota diária</h2>
+          <span className="text-sm text-muted-foreground">
+            {stats.usedToday} / {stats.dailyLimit} emails hoje
+          </span>
+        </div>
+        <Progress value={pct} className="h-2" />
+        <p className="mt-2 text-xs text-muted-foreground">Reset automático à meia-noite (fuso do servidor).</p>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold mb-3">Campanhas recentes</h2>
+        {campaigns.length === 0 ? (
+          <div className="rounded-xl bg-brand-surface p-10 text-center text-muted-foreground">
+            Nenhuma campanha ainda. <Link to="/campaigns/new" className="text-brand-accent hover:underline">Crie a primeira</Link>.
+          </div>
+        ) : (
+          <div className="rounded-xl bg-brand-surface overflow-hidden divide-y divide-brand-surface-hover/40">
+            {campaigns.map((c) => (
+              <div key={c.id} className="flex items-center justify-between p-4 hover:bg-brand-surface-hover/30 transition-colors">
+                <Link to="/campaigns/$id" params={{ id: c.id }} className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{c.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{c.subject} · {c.total_recipients} destinatários</p>
+                </Link>
+                <div className="flex items-center gap-3">
+                  <StatusBadge status={c.status} />
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      if (!confirm("Excluir esta campanha?")) return;
+                      await del({ data: { id: c.id } });
+                      toast.success("Campanha excluída");
+                      router.invalidate();
+                    }}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    aria-label="Excluir"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    draft: { label: "Rascunho", cls: "bg-brand-badge-bg text-muted-foreground" },
+    processing: { label: "Enviando", cls: "bg-brand-warning/20 text-brand-warning" },
+    paused: { label: "Pausada", cls: "bg-brand-badge-bg text-muted-foreground" },
+    completed: { label: "Concluída", cls: "bg-brand-success/20 text-brand-success" },
+    failed: { label: "Falhou", cls: "bg-brand-error/20 text-brand-error" },
+  };
+  const v = map[status] ?? map.draft;
+  return <span className={`text-xs px-2 py-1 rounded-md font-medium ${v.cls}`}>{v.label}</span>;
+}
