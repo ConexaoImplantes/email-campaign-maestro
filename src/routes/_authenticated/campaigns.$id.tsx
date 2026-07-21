@@ -42,7 +42,10 @@ export const Route = createFileRoute("/_authenticated/campaigns/$id")({
   loader: async ({ context, params }) => {
     const c = await context.queryClient.ensureQueryData(campaignQuery(params.id));
     if (!c) throw notFound();
-    await context.queryClient.ensureQueryData(recipientsQuery(params.id));
+    await Promise.all([
+      context.queryClient.ensureQueryData(recipientsQuery(params.id)),
+      context.queryClient.ensureQueryData(attachmentsQuery(params.id)),
+    ]);
     return c;
   },
   errorComponent: ({ error, reset }) => (
@@ -58,10 +61,13 @@ export const Route = createFileRoute("/_authenticated/campaigns/$id")({
 function CampaignDetail() {
   const { id } = Route.useParams();
   const router = useRouter();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: c } = useSuspenseQuery(campaignQuery(id));
   const { data: recipients } = useSuspenseQuery(recipientsQuery(id));
+  const { data: attachments } = useSuspenseQuery(attachmentsQuery(id));
   const setStatus = useServerFn(setCampaignStatus);
+  const clone = useServerFn(cloneCampaign);
   const prevStatusRef = useRef<string | null>(null);
 
   // Realtime updates via Supabase channels
@@ -115,11 +121,11 @@ function CampaignDetail() {
               className="gradient-brand text-primary-foreground"
               onClick={async () => {
                 await setStatus({ data: { id, status: "processing" } });
-                toast.success("Envio iniciado");
+                toast.success(c.status === "paused" ? "Envio retomado" : "Envio iniciado");
                 router.invalidate();
               }}
             >
-              <Play className="h-4 w-4 mr-1" /> Iniciar
+              <Play className="h-4 w-4 mr-1" /> {c.status === "paused" ? "Retomar" : "Iniciar"}
             </Button>
           ) : c.status === "processing" ? (
             <Button
@@ -134,15 +140,38 @@ function CampaignDetail() {
               <Pause className="h-4 w-4 mr-1" /> Pausar
             </Button>
           ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              try {
+                const { id: newId } = await clone({ data: { id } });
+                toast.success("Campanha clonada");
+                navigate({ to: "/campaigns/$id", params: { id: newId } });
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Falha ao clonar");
+              }
+            }}
+          >
+            <Copy className="h-4 w-4 mr-1" /> Clonar
+          </Button>
         </div>
       </div>
 
-      <section className="rounded-xl bg-brand-surface p-6">
-        <div className="flex justify-between text-sm mb-2">
-          <span className="text-muted-foreground">Progresso</span>
-          <span className="font-medium">{sent + failed} / {recipients.length}</span>
-        </div>
-        <Progress value={progressPct} className="h-2" />
+      {attachments.length > 0 && (
+        <section className="rounded-xl bg-brand-surface p-4">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+            <Paperclip className="h-3.5 w-3.5" /> Anexos ({attachments.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((a) => (
+              <span key={a.id} className="text-xs rounded-md bg-brand-badge-bg px-2 py-1">
+                {a.filename} <span className="text-muted-foreground">· {formatSize(a.size_bytes)}</span>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
         <div className="grid grid-cols-4 gap-4 mt-6 text-center">
           <div><p className="text-2xl font-semibold">{sent}</p><p className="text-xs text-muted-foreground">Enviados</p></div>
           <div><p className="text-2xl font-semibold text-brand-success">{opened}</p><p className="text-xs text-muted-foreground">Abertos</p></div>
