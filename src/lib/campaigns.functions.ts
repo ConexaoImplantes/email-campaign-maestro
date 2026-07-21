@@ -185,6 +185,7 @@ export const setCampaignStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (data.status === "processing") await assertApproved(supabase, userId);
     const { error } = await supabase
       .from("campaigns")
       .update({ status: data.status })
