@@ -292,3 +292,141 @@ export const deleteCampaign = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ---------- Attachments ----------
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+const addAttachmentInput = z.object({
+  campaign_id: z.string().uuid(),
+  filename: z.string().min(1).max(200),
+  mime_type: z.string().max(120).default("application/octet-stream"),
+  size_bytes: z.number().int().min(1).max(MAX_ATTACHMENT_BYTES),
+  content_base64: z.string().min(1).max(8_000_000),
+});
+
+export const addAttachment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) => addAttachmentInput.parse(v))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: camp } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("id", data.campaign_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!camp) throw new Error("Campanha não encontrada");
+    const { data: row, error } = await supabase
+      .from("campaign_attachments")
+      .insert({
+        campaign_id: data.campaign_id,
+        filename: data.filename,
+        mime_type: data.mime_type,
+        size_bytes: data.size_bytes,
+        content_base64: data.content_base64,
+      })
+      .select("id, filename, mime_type, size_bytes")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const listAttachments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) => z.object({ campaign_id: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: rows, error } = await supabase
+      .from("campaign_attachments")
+      .select("id, filename, mime_type, size_bytes, created_at")
+      .eq("campaign_id", data.campaign_id)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
+export const removeAttachment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) => z.object({ id: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { error } = await supabase
+      .from("campaign_attachments")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ---------- Clone ----------
+
+export const cloneCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) => z.object({ id: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: src, error: e1 } = await supabase
+      .from("campaigns")
+      .select("title, subject, content_type, body_content")
+      .eq("id", data.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (e1) throw new Error(e1.message);
+    if (!src) throw new Error("Campanha não encontrada");
+
+    const { data: clone, error: e2 } = await supabase
+      .from("campaigns")
+      .insert({
+        user_id: userId,
+        title: `${src.title} (cópia)`,
+        subject: src.subject,
+        content_type: src.content_type,
+        body_content: src.body_content,
+        status: "draft",
+        total_recipients: 0,
+      })
+      .select("id")
+      .single();
+    if (e2) throw new Error(e2.message);
+
+    // Copy recipients as fresh pending rows
+    const { data: rec } = await supabase
+      .from("recipients")
+      .select("email, name")
+      .eq("campaign_id", data.id);
+    const rows = (rec ?? []).map((r) => ({
+      campaign_id: clone.id,
+      email: r.email,
+      name: r.name ?? null,
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      const chunk = rows.slice(i, i + 500);
+      if (chunk.length === 0) break;
+      const { error: e3 } = await supabase.from("recipients").insert(chunk);
+      if (e3) throw new Error(e3.message);
+    }
+    if (rows.length > 0) {
+      await supabase
+        .from("campaigns")
+        .update({ total_recipients: rows.length })
+        .eq("id", clone.id);
+    }
+
+    // Copy attachments
+    const { data: atts } = await supabase
+      .from("campaign_attachments")
+      .select("filename, mime_type, size_bytes, content_base64")
+      .eq("campaign_id", data.id);
+    for (const a of atts ?? []) {
+      await supabase.from("campaign_attachments").insert({
+        campaign_id: clone.id,
+        filename: a.filename,
+        mime_type: a.mime_type,
+        size_bytes: a.size_bytes,
+        content_base64: a.content_base64,
+      });
+    }
+
+    return { id: clone.id };
+  });
