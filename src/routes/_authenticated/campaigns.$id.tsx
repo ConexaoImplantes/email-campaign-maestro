@@ -53,9 +53,39 @@ export const Route = createFileRoute("/_authenticated/campaigns/$id")({
 function CampaignDetail() {
   const { id } = Route.useParams();
   const router = useRouter();
+  const qc = useQueryClient();
   const { data: c } = useSuspenseQuery(campaignQuery(id));
   const { data: recipients } = useSuspenseQuery(recipientsQuery(id));
   const setStatus = useServerFn(setCampaignStatus);
+  const prevStatusRef = useRef<string | null>(null);
+
+  // Realtime updates via Supabase channels
+  useEffect(() => {
+    const channel = supabase
+      .channel(`campaign-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "recipients", filter: `campaign_id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["recipients", id] });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "campaigns", filter: `id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["campaign", id] });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, qc]);
+
+  // Aviso sonoro quando a campanha finaliza
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const curr = c?.status as string | undefined;
+    if (prev && prev !== curr && (curr === "completed" || curr === "failed")) {
+      playCompletionSound();
+      toast.success(curr === "completed" ? "Campanha concluída!" : "Campanha finalizada com falhas");
+    }
+    if (curr) prevStatusRef.current = curr;
+  }, [c?.status]);
+
   if (!c) return null;
 
   const sent = recipients.filter((r) => r.status === "sent").length;
