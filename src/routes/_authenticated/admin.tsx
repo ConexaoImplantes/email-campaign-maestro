@@ -207,7 +207,7 @@ function AdminPage() {
   );
 }
 
-type AdminUser = ReturnType<typeof useSuspenseQuery<typeof usersQuery>>["data"][number];
+type AdminUser = Awaited<ReturnType<typeof adminListUsers>>[number];
 
 function UserRow({
   user,
