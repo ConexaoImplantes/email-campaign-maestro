@@ -14,7 +14,7 @@ export const Route = createFileRoute("/api/public/hooks/process-campaigns")({
         }
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { decryptSecret } = await import("@/lib/crypto.server");
-        const { sendMail, injectTrackingPixel } = await import("@/lib/smtp.server");
+        const { sendMail, injectTrackingPixel, extractInlineImages } = await import("@/lib/smtp.server");
 
         // Find active campaigns (processing)
         const { data: campaigns, error: cErr } = await supabaseAdmin
@@ -120,8 +120,11 @@ export const Route = createFileRoute("/api/public/hooks/process-campaigns")({
               .maybeSingle();
             if (stateRow?.status !== "processing") break;
 
-            const html = injectTrackingPixel(camp.body_content ?? "", trackBase, r.id);
-            const res = await sendMail(cfg, { email: r.email, name: r.name }, camp.subject, html, attachments);
+            const originBase = deriveOrigin(request);
+            const inline = extractInlineImages(camp.body_content ?? "", originBase);
+            const html = injectTrackingPixel(inline.html, trackBase, r.id);
+            const mailAttachments = [...attachments, ...inline.attachments];
+            const res = await sendMail(cfg, { email: r.email, name: r.name }, camp.subject, html, mailAttachments);
             const now = new Date().toISOString();
             if (res.ok) {
               await supabaseAdmin
