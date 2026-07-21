@@ -111,8 +111,24 @@ function AdminPage() {
   const qc = useQueryClient();
   const saveLimits = useServerFn(adminUpdateLimits);
   const saveSmtp = useServerFn(adminSaveUserSmtp);
+  const approve = useServerFn(adminApproveUser);
+  const reject = useServerFn(adminRejectUser);
 
+  const pending = users.filter((u) => u.status === "pending");
   const pct = stats.totalLimit > 0 ? Math.min(100, Math.round((stats.usedToday / stats.totalLimit) * 100)) : 0;
+
+  async function handleApprove(userId: string, daily_limit: number) {
+    await approve({ data: { user_id: userId, daily_limit } });
+    toast.success("Usuário aprovado");
+    qc.invalidateQueries({ queryKey: ["admin-users"] });
+    qc.invalidateQueries({ queryKey: ["admin-global-stats"] });
+  }
+  async function handleReject(userId: string) {
+    await reject({ data: { user_id: userId } });
+    toast.success("Usuário rejeitado");
+    qc.invalidateQueries({ queryKey: ["admin-users"] });
+  }
+
 
   return (
     <div className="space-y-8">
