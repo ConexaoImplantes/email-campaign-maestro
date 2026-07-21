@@ -9,8 +9,20 @@ import {
 } from "@/lib/campaigns.functions";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Send, XCircle, Eye, MailCheck, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
 
 const statsQuery = queryOptions({
   queryKey: ["dashboard-stats"],
