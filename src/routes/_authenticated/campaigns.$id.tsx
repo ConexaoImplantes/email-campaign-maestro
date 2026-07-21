@@ -197,3 +197,29 @@ function RecipientStatus({ status, error }: { status: string; error: string | nu
     </span>
   );
 }
+
+function playCompletionSound() {
+  try {
+    const AC = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+    const ctx = new AC();
+    const now = ctx.currentTime;
+    const notes = [880, 1108.73, 1318.51]; // A5, C#6, E6
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const start = now + i * 0.18;
+      const end = start + 0.28;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(end + 0.02);
+    });
+    setTimeout(() => ctx.close(), 1500);
+  } catch {
+    // ignore audio errors
+  }
+}
