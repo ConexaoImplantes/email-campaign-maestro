@@ -379,7 +379,16 @@ function UserRow({
           {user.stats.failed} falhas · {user.stats.opened} aberturas
         </p>
       </div>
-      <div className="col-span-1 flex justify-end">
+      <div className="col-span-1 flex justify-end gap-1">
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Zerar consumo diário"
+          title="Zerar consumo diário"
+          onClick={onResetUsage}
+        >
+          <RotateCcw className="h-4 w-4" />
+        </Button>
         <Dialog open={smtpOpen} onOpenChange={setSmtpOpen}>
           <DialogTrigger asChild>
             <Button size="icon" variant="ghost" aria-label="Editar SMTP">
