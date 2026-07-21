@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import Papa from "papaparse";
 import { useServerFn } from "@tanstack/react-start";
-import { createCampaign, setCampaignStatus, getProfile } from "@/lib/campaigns.functions";
+import { createCampaign, setCampaignStatus, getProfile, addAttachment } from "@/lib/campaigns.functions";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Upload, X, Download } from "lucide-react";
+import { Upload, X, Download, Paperclip } from "lucide-react";
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_ATTACHMENTS = 2;
 
 const profileQuery = queryOptions({ queryKey: ["profile"], queryFn: () => getProfile() });
 
@@ -43,15 +46,35 @@ function NewCampaign() {
   const navigate = useNavigate();
   const create = useServerFn(createCampaign);
   const setStatus = useServerFn(setCampaignStatus);
+  const addAtt = useServerFn(addAttachment);
 
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [contentType, setContentType] = useState<"richtext" | "html">("richtext");
   const [body, setBody] = useState("");
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
   const [busy, setBusy] = useState(false);
+
+  function handleAttachmentPick(files: FileList | null) {
+    if (!files) return;
+    const picked = Array.from(files);
+    const next = [...attachments];
+    for (const f of picked) {
+      if (next.length >= MAX_ATTACHMENTS) {
+        toast.error(`Máximo de ${MAX_ATTACHMENTS} anexos`);
+        break;
+      }
+      if (f.size > MAX_ATTACHMENT_BYTES) {
+        toast.error(`"${f.name}" excede 5MB`);
+        continue;
+      }
+      next.push(f);
+    }
+    setAttachments(next);
+  }
 
   function handleCsv(file: File) {
     Papa.parse<Record<string, string>>(file, {
