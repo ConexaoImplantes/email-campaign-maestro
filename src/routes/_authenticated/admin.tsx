@@ -449,3 +449,87 @@ function SmtpDialog({
     </DialogContent>
   );
 }
+
+function StatusBadge({ status }: { status: AdminUser["status"] }) {
+  const map = {
+    approved: { label: "Aprovado", cls: "bg-brand-success/20 text-brand-success" },
+    pending: { label: "Pendente", cls: "bg-brand-accent/20 text-brand-accent" },
+    rejected: { label: "Rejeitado", cls: "bg-brand-error/20 text-brand-error" },
+  } as const;
+  const s = map[status];
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+
+function PendingRow({
+  user,
+  onApprove,
+  onReject,
+}: {
+  user: AdminUser;
+  onApprove: (limit: number) => Promise<void>;
+  onReject: () => Promise<void>;
+}) {
+  const [limit, setLimit] = useState(user.daily_limit || 300);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex items-center justify-between gap-4 p-4 flex-wrap">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium truncate">{user.email ?? user.id.slice(0, 8)}</p>
+        <p className="text-xs text-muted-foreground">
+          Cadastrado em {new Date(user.created_at).toLocaleString("pt-BR")}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Label htmlFor={`pl-${user.id}`} className="text-xs text-muted-foreground">
+          Cota/dia
+        </Label>
+        <Input
+          id={`pl-${user.id}`}
+          type="number"
+          min={1}
+          value={limit}
+          onChange={(e) => setLimit(Number(e.target.value))}
+          className="h-9 w-24"
+        />
+        <Button
+          size="sm"
+          disabled={busy || limit < 1}
+          className="gradient-brand text-primary-foreground"
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await onApprove(limit);
+            } catch (e) {
+              toast.error("Falha", { description: (e as Error).message });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <CheckCircle2 className="h-4 w-4 mr-1" /> Aprovar
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await onReject();
+            } catch (e) {
+              toast.error("Falha", { description: (e as Error).message });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Ban className="h-4 w-4 mr-1 text-brand-error" /> Rejeitar
+        </Button>
+      </div>
+    </div>
+  );
+}
