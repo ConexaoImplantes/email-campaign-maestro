@@ -1,7 +1,9 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useRef } from "react";
 import { getCampaign, getRecipients, setCampaignStatus } from "@/lib/campaigns.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -11,12 +13,13 @@ const campaignQuery = (id: string) =>
   queryOptions({
     queryKey: ["campaign", id],
     queryFn: () => getCampaign({ data: { id } }),
+    refetchInterval: 2000,
   });
 const recipientsQuery = (id: string) =>
   queryOptions({
     queryKey: ["recipients", id],
     queryFn: () => getRecipients({ data: { campaign_id: id } }),
-    refetchInterval: 5000,
+    refetchInterval: 2000,
   });
 
 export const Route = createFileRoute("/_authenticated/campaigns/$id")({
@@ -50,9 +53,39 @@ export const Route = createFileRoute("/_authenticated/campaigns/$id")({
 function CampaignDetail() {
   const { id } = Route.useParams();
   const router = useRouter();
+  const qc = useQueryClient();
   const { data: c } = useSuspenseQuery(campaignQuery(id));
   const { data: recipients } = useSuspenseQuery(recipientsQuery(id));
   const setStatus = useServerFn(setCampaignStatus);
+  const prevStatusRef = useRef<string | null>(null);
+
+  // Realtime updates via Supabase channels
+  useEffect(() => {
+    const channel = supabase
+      .channel(`campaign-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "recipients", filter: `campaign_id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["recipients", id] });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "campaigns", filter: `id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["campaign", id] });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, qc]);
+
+  // Aviso sonoro quando a campanha finaliza
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const curr = c?.status as string | undefined;
+    if (prev && prev !== curr && (curr === "completed" || curr === "failed")) {
+      playCompletionSound();
+      toast.success(curr === "completed" ? "Campanha concluída!" : "Campanha finalizada com falhas");
+    }
+    if (curr) prevStatusRef.current = curr;
+  }, [c?.status]);
+
   if (!c) return null;
 
   const sent = recipients.filter((r) => r.status === "sent").length;
@@ -163,4 +196,30 @@ function RecipientStatus({ status, error }: { status: string; error: string | nu
       {status === "pending" ? "Pendente" : status === "sent" ? "Enviado" : "Falhou"}
     </span>
   );
+}
+
+function playCompletionSound() {
+  try {
+    const AC = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+    const ctx = new AC();
+    const now = ctx.currentTime;
+    const notes = [880, 1108.73, 1318.51]; // A5, C#6, E6
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const start = now + i * 0.18;
+      const end = start + 0.28;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(end + 0.02);
+    });
+    setTimeout(() => ctx.close(), 1500);
+  } catch {
+    // ignore audio errors
+  }
 }
