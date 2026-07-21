@@ -147,13 +147,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      decrypt_smtp_pass: { Args: { _cipher: string }; Returns: string }
-      encrypt_smtp_pass: { Args: { _plain: string }; Returns: string }
       increment_emails_sent: {
         Args: { _amount: number; _user_id: string }
         Returns: undefined
       }
-      set_smtp_password: { Args: { _plain: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
