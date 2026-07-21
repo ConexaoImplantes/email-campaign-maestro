@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -6,6 +6,7 @@ import {
   getProfile,
   listCampaigns,
   deleteCampaign,
+  cloneCampaign,
 } from "@/lib/campaigns.functions";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Send, XCircle, Eye, MailCheck, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Send, XCircle, Eye, MailCheck, Plus, Trash2, AlertTriangle, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -79,10 +80,12 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: typeof Send; label
 
 function Dashboard() {
   const router = useRouter();
+  const navigate = useNavigate();
   const { data: stats } = useSuspenseQuery(statsQuery);
   const { data: profile } = useSuspenseQuery(profileQuery);
   const { data: campaigns } = useSuspenseQuery(campaignsQuery);
   const del = useServerFn(deleteCampaign);
+  const clone = useServerFn(cloneCampaign);
 
   const pct = Math.min(100, Math.round((stats.usedToday / stats.dailyLimit) * 100));
 
