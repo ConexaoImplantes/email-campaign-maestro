@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          created_at: string
+          from_name: string | null
+          id: string
+          smtp_host: string | null
+          smtp_pass_encrypted: string | null
+          smtp_port: number | null
+          smtp_user: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          from_name?: string | null
+          id?: string
+          smtp_host?: string | null
+          smtp_pass_encrypted?: string | null
+          smtp_port?: number | null
+          smtp_user?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          from_name?: string | null
+          id?: string
+          smtp_host?: string | null
+          smtp_pass_encrypted?: string | null
+          smtp_port?: number | null
+          smtp_user?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campaign_attachments: {
         Row: {
           campaign_id: string
