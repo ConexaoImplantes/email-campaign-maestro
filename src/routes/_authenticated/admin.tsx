@@ -172,6 +172,34 @@ function AdminPage() {
       </section>
 
       <section>
+        <div className="flex items-center gap-2 mb-3">
+          <Clock className="h-4 w-4 text-brand-accent" />
+          <h2 className="text-lg font-semibold">Aprovações pendentes</h2>
+          {pending.length > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded bg-brand-accent/20 text-brand-accent">
+              {pending.length}
+            </span>
+          )}
+        </div>
+        <div className="rounded-xl bg-brand-surface overflow-hidden divide-y divide-brand-surface-hover/40">
+          {pending.length === 0 && (
+            <div className="p-6 text-center text-muted-foreground text-sm">
+              Nenhum cadastro aguardando aprovação.
+            </div>
+          )}
+          {pending.map((u) => (
+            <PendingRow
+              key={u.id}
+              user={u}
+              onApprove={(limit) => handleApprove(u.id, limit)}
+              onReject={() => handleReject(u.id)}
+            />
+          ))}
+        </div>
+      </section>
+
+
+      <section>
         <h2 className="text-lg font-semibold mb-3">Usuários da plataforma</h2>
         <div className="rounded-xl bg-brand-surface overflow-hidden">
           <div className="grid grid-cols-12 gap-3 px-4 py-3 text-xs uppercase tracking-wider text-muted-foreground border-b border-brand-surface-hover/40">
