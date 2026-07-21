@@ -70,6 +70,7 @@ export interface MailAttachment {
   filename: string;
   content: Buffer;
   contentType?: string;
+  cid?: string;
 }
 
 export async function sendMail(
@@ -91,6 +92,7 @@ export async function sendMail(
         filename: a.filename,
         content: a.content,
         contentType: a.contentType,
+        cid: a.cid,
       })),
     });
     return { ok: true };
@@ -110,3 +112,49 @@ export function injectTrackingPixel(
   if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${pixel}</body>`);
   return html + pixel;
 }
+
+/**
+ * Converts inline data:image URIs into CID attachments and rewrites
+ * relative <img src="/..."> paths into absolute URLs. Email clients
+ * (Gmail/Outlook) frequently strip data: URIs — CIDs render reliably.
+ */
+export function extractInlineImages(
+  html: string,
+  baseUrl?: string,
+): { html: string; attachments: MailAttachment[] } {
+  const attachments: MailAttachment[] = [];
+  let counter = 0;
+
+  let out = html.replace(
+    /src\s*=\s*(['"])data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)\1/g,
+    (_m, _q, mime: string, b64: string) => {
+      const cleaned = b64.replace(/\s+/g, "");
+      let content: Buffer;
+      try {
+        content = Buffer.from(cleaned, "base64");
+      } catch {
+        return _m as string;
+      }
+      const ext = (mime.split("/")[1] ?? "png").split("+")[0];
+      const cid = `inline-${Date.now()}-${counter++}@conexao`;
+      attachments.push({
+        filename: `image-${counter}.${ext}`,
+        content,
+        contentType: mime,
+        cid,
+      });
+      return `src="cid:${cid}"`;
+    },
+  );
+
+  if (baseUrl) {
+    const origin = baseUrl.replace(/\/$/, "");
+    out = out.replace(
+      /(<img\b[^>]*\bsrc\s*=\s*)(['"])(\/[^'"]*)\2/gi,
+      (_m, pre: string, q: string, path: string) => `${pre}${q}${origin}${path}${q}`,
+    );
+  }
+
+  return { html: out, attachments };
+}
+
