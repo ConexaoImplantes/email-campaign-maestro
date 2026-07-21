@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getProfile, saveSmtp, testSmtp } from "@/lib/campaigns.functions";
+import { isAdmin } from "@/lib/admin.functions";
 import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,10 @@ export const Route = createFileRoute("/_authenticated/settings")({
       { property: "og:description", content: "Configure seu servidor SMTP e o remetente das campanhas." },
     ],
   }),
+  beforeLoad: async () => {
+    const result = await isAdmin();
+    if (!result?.isAdmin) throw redirect({ to: "/dashboard" });
+  },
   loader: ({ context }) => context.queryClient.ensureQueryData(profileQuery),
   errorComponent: ({ error, reset }) => (
     <div>
