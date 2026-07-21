@@ -20,14 +20,17 @@ const recipientsQuery = (id: string) =>
   });
 
 export const Route = createFileRoute("/_authenticated/campaigns/$id")({
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: `${loaderData?.title ?? "Campanha"} — Conexão Implantes` },
-      { name: "description", content: "Detalhes, progresso e destinatários da campanha." },
-      { property: "og:title", content: `${loaderData?.title ?? "Campanha"} — Conexão Implantes` },
-      { property: "og:description", content: "Detalhes, progresso e destinatários da campanha." },
-    ],
-  }),
+  head: ({ loaderData }) => {
+    const title = (loaderData as { title?: string } | undefined)?.title ?? "Campanha";
+    return {
+      meta: [
+        { title: `${title} — Conexão Implantes` },
+        { name: "description", content: "Detalhes, progresso e destinatários da campanha." },
+        { property: "og:title", content: `${title} — Conexão Implantes` },
+        { property: "og:description", content: "Detalhes, progresso e destinatários da campanha." },
+      ],
+    };
+  },
   loader: async ({ context, params }) => {
     const c = await context.queryClient.ensureQueryData(campaignQuery(params.id));
     if (!c) throw notFound();
