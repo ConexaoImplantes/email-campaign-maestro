@@ -38,6 +38,7 @@ import {
   CheckCircle2,
   Ban,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 
 const adminGuardQuery = queryOptions({
