@@ -154,6 +154,23 @@ function Dashboard() {
                 </Link>
                 <div className="flex items-center gap-3">
                   <StatusBadge status={c.status} />
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      try {
+                        const { id } = await clone({ data: { id: c.id } });
+                        toast.success("Campanha clonada");
+                        navigate({ to: "/campaigns/$id", params: { id } });
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Falha ao clonar");
+                      }
+                    }}
+                    className="text-muted-foreground hover:text-brand-accent p-1"
+                    aria-label="Clonar"
+                    title="Clonar campanha"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button
