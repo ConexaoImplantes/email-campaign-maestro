@@ -1,6 +1,6 @@
-// SMTP sending via worker-mailer (Cloudflare Workers TCP sockets).
-// Server-only: never import from client bundles.
-import { WorkerMailer } from "worker-mailer";
+// SMTP sending via nodemailer.
+// Server-only: imported dynamically from server functions/routes.
+import nodemailer from "nodemailer";
 
 export interface SmtpConfig {
   host: string;
@@ -15,20 +15,54 @@ export interface SendResult {
   error?: string;
 }
 
+function getSmtpErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/invalid login|authentication failed|username and password not accepted|535/i.test(message)) {
+    return "Usuário ou senha SMTP inválidos. Para Gmail, use uma senha de app de 16 caracteres.";
+  }
+  if (/certificate|self signed|tls/i.test(message)) {
+    return "Falha de TLS/segurança na conexão SMTP. Verifique host, porta e configuração de STARTTLS.";
+  }
+  if (/timeout|timed out|etimedout/i.test(message)) {
+    return "Tempo esgotado ao conectar ao SMTP. Verifique host e porta.";
+  }
+  if (/econnrefused|enotfound|getaddrinfo|dns/i.test(message)) {
+    return "Não foi possível conectar ao servidor SMTP. Verifique host e porta.";
+  }
+  return message || "Falha na conexão SMTP";
+}
+
+function formatAddress(email: string, name?: string | null): string {
+  if (!name?.trim()) return email;
+  const safeName = name.trim().replace(/"/g, "'");
+  return `"${safeName}" <${email}>`;
+}
+
+function createTransport(cfg: SmtpConfig) {
+  return nodemailer.createTransport({
+    host: cfg.host,
+    port: cfg.port,
+    secure: cfg.port === 465,
+    requireTLS: cfg.port === 587,
+    auth: {
+      user: cfg.user,
+      pass: cfg.pass,
+    },
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
+    socketTimeout: 30_000,
+  });
+}
+
 export async function verifySmtp(cfg: SmtpConfig): Promise<SendResult> {
+  const transporter = createTransport(cfg);
   try {
-    const mailer = await WorkerMailer.connect({
-      credentials: { username: cfg.user, password: cfg.pass },
-      authType: "plain",
-      host: cfg.host,
-      port: cfg.port,
-      secure: cfg.port === 465,
-      startTls: cfg.port === 587,
-    });
-    await mailer.close();
+    await transporter.verify();
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: (e as Error).message || "SMTP connection failed" };
+    return { ok: false, error: getSmtpErrorMessage(e) };
+  } finally {
+    transporter.close();
   }
 }
 
@@ -38,31 +72,20 @@ export async function sendMail(
   subject: string,
   html: string,
 ): Promise<SendResult> {
-  let mailer: WorkerMailer | null = null;
+  const transporter = createTransport(cfg);
   try {
-    mailer = await WorkerMailer.connect({
-      credentials: { username: cfg.user, password: cfg.pass },
-      authType: "plain",
-      host: cfg.host,
-      port: cfg.port,
-      secure: cfg.port === 465,
-      startTls: cfg.port === 587,
-    });
-    await mailer.send({
-      from: cfg.fromName ? { name: cfg.fromName, email: cfg.user } : cfg.user,
-      to: to.name ? { name: to.name, email: to.email } : to.email,
+    await transporter.sendMail({
+      from: formatAddress(cfg.user, cfg.fromName),
+      to: formatAddress(to.email, to.name),
       subject,
       html,
+      text: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
     });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: (e as Error).message || "Send failed" };
+    return { ok: false, error: getSmtpErrorMessage(e) };
   } finally {
-    try {
-      await mailer?.close();
-    } catch {
-      /* noop */
-    }
+    transporter.close();
   }
 }
 
