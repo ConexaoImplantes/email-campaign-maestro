@@ -261,6 +261,7 @@ function AdminPage() {
                 toast.success("SMTP atualizado");
                 qc.invalidateQueries({ queryKey: ["admin-users"] });
               }}
+              onResetUsage={() => handleResetOne(u.id)}
             />
           ))}
           {users.length === 0 && (
