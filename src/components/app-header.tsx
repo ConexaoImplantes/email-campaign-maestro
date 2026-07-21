@@ -9,8 +9,9 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/campaigns/new", label: "Nova campanha" },
-  { to: "/settings", label: "SMTP" },
 ] as const;
+
+const ADMIN_NAV = [{ to: "/settings", label: "SMTP" }] as const;
 
 export function AppHeader() {
   const navigate = useNavigate();
@@ -37,6 +38,23 @@ export function AppHeader() {
         </Link>
         <nav className="hidden md:flex items-center gap-1">
           {NAV.map((n) => {
+            const active = pathname === n.to || pathname.startsWith(n.to + "/");
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                  active
+                    ? "text-brand-accent bg-brand-accent/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-brand-surface-hover/50",
+                )}
+              >
+                {n.label}
+              </Link>
+            );
+          })}
+          {adminInfo?.isAdmin && ADMIN_NAV.map((n) => {
             const active = pathname === n.to || pathname.startsWith(n.to + "/");
             return (
               <Link
