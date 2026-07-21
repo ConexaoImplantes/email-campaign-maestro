@@ -1,7 +1,8 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { LogOut, Shield } from "lucide-react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { isAdmin } from "@/lib/admin.functions";
 import logoAsset from "@/assets/logo-conexao-horizontal.png.asset.json";
 import { cn } from "@/lib/utils";
 
