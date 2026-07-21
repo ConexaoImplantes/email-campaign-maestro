@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Download } from "lucide-react";
 
 const profileQuery = queryOptions({ queryKey: ["profile"], queryFn: () => getProfile() });
 
