@@ -35,7 +35,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
     const { data: profiles, error } = await supabaseAdmin
       .from("profiles")
       .select(
-        "id, email, smtp_host, smtp_port, smtp_user, smtp_pass_encrypted, from_name, daily_limit, emails_sent_today, last_reset_date, created_at",
+        "id, email, smtp_host, smtp_port, smtp_user, smtp_pass_encrypted, from_name, daily_limit, emails_sent_today, last_reset_date, created_at, status",
       )
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
