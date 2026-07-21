@@ -43,16 +43,18 @@ export const saveSmtp = createServerFn({ method: "POST" })
   .inputValidator((v) => smtpInput.parse(v))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const patch: Record<string, unknown> = {
+    let encrypted: string | undefined;
+    if (data.smtp_pass && data.smtp_pass.length > 0) {
+      const { encryptSecret } = await import("@/lib/crypto.server");
+      encrypted = await encryptSecret(data.smtp_pass);
+    }
+    const patch = {
       smtp_host: data.smtp_host,
       smtp_port: data.smtp_port,
       smtp_user: data.smtp_user,
       from_name: data.from_name ?? null,
+      ...(encrypted ? { smtp_pass_encrypted: encrypted } : {}),
     };
-    if (data.smtp_pass && data.smtp_pass.length > 0) {
-      const { encryptSecret } = await import("@/lib/crypto.server");
-      patch.smtp_pass_encrypted = await encryptSecret(data.smtp_pass);
-    }
     const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
