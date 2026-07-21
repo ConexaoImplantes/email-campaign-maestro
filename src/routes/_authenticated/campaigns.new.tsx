@@ -257,6 +257,25 @@ function NewCampaign() {
   );
 }
 
+function downloadCsvTemplate() {
+  const rows = [
+    ["name", "email"],
+    ["João Silva", "joao.silva@email.com"],
+    ["Maria Souza", "maria.souza@email.com"],
+    ["Clínica Odonto", "contato@clinicaodonto.com"],
+  ];
+  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "modelo-destinatarios-conexao-implantes.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function dedupe(arr: Recipient[]): Recipient[] {
   const seen = new Set<string>();
   return arr.filter((r) => {
