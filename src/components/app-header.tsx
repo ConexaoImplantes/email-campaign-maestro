@@ -16,6 +16,11 @@ export function AppHeader() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { data: adminInfo } = useQuery({
+    queryKey: ["is-admin"],
+    queryFn: () => isAdmin(),
+    staleTime: 60_000,
+  });
 
   async function handleSignOut() {
     await qc.cancelQueries();
@@ -48,6 +53,19 @@ export function AppHeader() {
               </Link>
             );
           })}
+          {adminInfo?.isAdmin && (
+            <Link
+              to="/admin"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors inline-flex items-center gap-1.5",
+                pathname.startsWith("/admin")
+                  ? "text-brand-accent bg-brand-accent/10"
+                  : "text-muted-foreground hover:text-foreground hover:bg-brand-surface-hover/50",
+              )}
+            >
+              <Shield className="h-3.5 w-3.5" /> Super Admin
+            </Link>
+          )}
         </nav>
         <button
           onClick={handleSignOut}
