@@ -127,13 +127,13 @@ export const adminSaveUserSmtp = createServerFn({ method: "POST" })
       const { encryptSecret } = await import("@/lib/crypto.server");
       encrypted = await encryptSecret(data.smtp_pass);
     }
-    const patch: Record<string, unknown> = {
+    const patch = {
       smtp_host: data.smtp_host,
       smtp_port: data.smtp_port,
       smtp_user: data.smtp_user,
       from_name: data.from_name ?? null,
+      ...(encrypted ? { smtp_pass_encrypted: encrypted } : {}),
     };
-    if (encrypted) patch.smtp_pass_encrypted = encrypted;
     const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", data.user_id);
     if (error) throw new Error(error.message);
     return { ok: true };
