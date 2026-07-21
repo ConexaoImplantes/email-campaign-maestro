@@ -39,7 +39,10 @@ export function AppHeader() {
         </Link>
         <nav className="hidden md:flex items-center gap-1">
           {NAV.map((n) => {
-            const active = pathname === n.to || pathname.startsWith(n.to + "/");
+            const active =
+              n.to === "/campaigns"
+                ? pathname === "/campaigns" || (pathname.startsWith("/campaigns/") && pathname !== "/campaigns/new")
+                : pathname === n.to || pathname.startsWith(n.to + "/");
             return (
               <Link
                 key={n.to}
