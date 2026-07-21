@@ -189,11 +189,22 @@ function AdminPage() {
       </section>
 
       <section className="rounded-xl bg-brand-surface p-6">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 gap-3">
           <h2 className="text-lg font-semibold">Consumo diário global</h2>
-          <span className="text-sm text-muted-foreground">
-            {stats.usedToday} / {stats.totalLimit} emails hoje
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {stats.usedToday} / {stats.totalLimit} emails hoje
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleResetAll}
+              disabled={resettingAll}
+            >
+              <RotateCcw className="h-4 w-4 mr-1.5" />
+              {resettingAll ? "Zerando…" : "Resetar todos"}
+            </Button>
+          </div>
         </div>
         <Progress value={pct} className="h-2" />
       </section>
