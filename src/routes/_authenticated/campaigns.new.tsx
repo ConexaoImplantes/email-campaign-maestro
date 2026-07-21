@@ -126,9 +126,22 @@ function NewCampaign() {
           recipients,
         },
       });
+      // Upload attachments (if any)
+      for (const file of attachments) {
+        const base64 = await fileToBase64(file);
+        await addAtt({
+          data: {
+            campaign_id: id,
+            filename: file.name,
+            mime_type: file.type || "application/octet-stream",
+            size_bytes: file.size,
+            content_base64: base64,
+          },
+        });
+      }
       if (startNow) {
         await setStatus({ data: { id, status: "processing" } });
-        toast.success("Campanha iniciada! O disparo roda a cada minuto.");
+        toast.success("Campanha iniciada! O envio roda em segundo plano.");
       } else {
         toast.success("Rascunho salvo");
       }
