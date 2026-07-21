@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      campaign_attachments: {
+        Row: {
+          campaign_id: string
+          content_base64: string
+          created_at: string
+          filename: string
+          id: string
+          mime_type: string
+          size_bytes: number
+        }
+        Insert: {
+          campaign_id: string
+          content_base64: string
+          created_at?: string
+          filename: string
+          id?: string
+          mime_type?: string
+          size_bytes: number
+        }
+        Update: {
+          campaign_id?: string
+          content_base64?: string
+          created_at?: string
+          filename?: string
+          id?: string
+          mime_type?: string
+          size_bytes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_attachments_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           body_content: string
