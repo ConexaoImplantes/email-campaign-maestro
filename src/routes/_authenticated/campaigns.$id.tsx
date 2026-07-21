@@ -1,13 +1,13 @@
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef } from "react";
-import { getCampaign, getRecipients, setCampaignStatus } from "@/lib/campaigns.functions";
+import { getCampaign, getRecipients, setCampaignStatus, cloneCampaign, listAttachments } from "@/lib/campaigns.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Play, Pause } from "lucide-react";
+import { Play, Pause, Copy, Paperclip } from "lucide-react";
 
 const campaignQuery = (id: string) =>
   queryOptions({
@@ -20,6 +20,11 @@ const recipientsQuery = (id: string) =>
     queryKey: ["recipients", id],
     queryFn: () => getRecipients({ data: { campaign_id: id } }),
     refetchInterval: 2000,
+  });
+const attachmentsQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["attachments", id],
+    queryFn: () => listAttachments({ data: { campaign_id: id } }),
   });
 
 export const Route = createFileRoute("/_authenticated/campaigns/$id")({
