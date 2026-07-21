@@ -27,25 +27,44 @@ export const Route = createFileRoute("/api/public/hooks/process-campaigns")({
         const trackBase = deriveOrigin(request) + "/api/public/hooks/track-open";
         const summary: Record<string, { sent: number; failed: number }> = {};
 
+        // Load default SMTP once (fallback for users without their own)
+        const { data: defaultSmtp } = await supabaseAdmin
+          .from("app_settings")
+          .select("smtp_host, smtp_port, smtp_user, smtp_pass_encrypted, from_name")
+          .eq("id", "default")
+          .maybeSingle();
+
         for (const camp of campaigns ?? []) {
           const { data: profile } = await supabaseAdmin
             .from("profiles")
             .select("smtp_host, smtp_port, smtp_user, smtp_pass_encrypted, from_name, daily_limit, emails_sent_today, last_reset_date")
             .eq("id", camp.user_id)
             .maybeSingle();
-          if (!profile?.smtp_pass_encrypted || !profile.smtp_host || !profile.smtp_user) continue;
+
+          // Resolve SMTP: prefer per-user override, otherwise fall back to global default.
+          const userHasOwnSmtp = Boolean(
+            profile?.smtp_pass_encrypted && profile?.smtp_host && profile?.smtp_user,
+          );
+          const smtpSource = userHasOwnSmtp ? profile! : defaultSmtp;
+          if (
+            !smtpSource?.smtp_pass_encrypted ||
+            !smtpSource.smtp_host ||
+            !smtpSource.smtp_user
+          ) {
+            continue;
+          }
 
           // Daily reset check
           const today = new Date().toISOString().slice(0, 10);
-          let used = profile.emails_sent_today ?? 0;
-          if (profile.last_reset_date !== today) {
+          let used = profile?.emails_sent_today ?? 0;
+          if (profile?.last_reset_date !== today) {
             used = 0;
             await supabaseAdmin
               .from("profiles")
               .update({ emails_sent_today: 0, last_reset_date: today })
               .eq("id", camp.user_id);
           }
-          const remaining = Math.max(0, (profile.daily_limit ?? 300) - used);
+          const remaining = Math.max(0, (profile?.daily_limit ?? 300) - used);
           if (remaining <= 0) continue;
 
           // Batch size per tick — send up to 15/minute to spread evenly
@@ -71,13 +90,13 @@ export const Route = createFileRoute("/api/public/hooks/process-campaigns")({
             continue;
           }
 
-          const password = await decryptSecret(profile.smtp_pass_encrypted as string);
+          const password = await decryptSecret(smtpSource.smtp_pass_encrypted as string);
           const cfg = {
-            host: profile.smtp_host,
-            port: profile.smtp_port ?? 587,
-            user: profile.smtp_user,
+            host: smtpSource.smtp_host as string,
+            port: (smtpSource.smtp_port as number | null) ?? 587,
+            user: smtpSource.smtp_user as string,
             pass: password,
-            fromName: profile.from_name,
+            fromName: (profile?.from_name ?? smtpSource.from_name) as string | null,
           };
 
           // Load attachments once per campaign
