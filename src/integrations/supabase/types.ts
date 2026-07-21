@@ -14,13 +14,146 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      campaigns: {
+        Row: {
+          body_content: string
+          content_type: string
+          created_at: string
+          id: string
+          status: string
+          subject: string
+          title: string
+          total_recipients: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body_content?: string
+          content_type?: string
+          created_at?: string
+          id?: string
+          status?: string
+          subject: string
+          title: string
+          total_recipients?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body_content?: string
+          content_type?: string
+          created_at?: string
+          id?: string
+          status?: string
+          subject?: string
+          title?: string
+          total_recipients?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          daily_limit: number
+          email: string | null
+          emails_sent_today: number
+          from_name: string | null
+          id: string
+          last_reset_date: string
+          smtp_host: string
+          smtp_pass_encrypted: string | null
+          smtp_port: number
+          smtp_user: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_limit?: number
+          email?: string | null
+          emails_sent_today?: number
+          from_name?: string | null
+          id: string
+          last_reset_date?: string
+          smtp_host?: string
+          smtp_pass_encrypted?: string | null
+          smtp_port?: number
+          smtp_user?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_limit?: number
+          email?: string | null
+          emails_sent_today?: number
+          from_name?: string | null
+          id?: string
+          last_reset_date?: string
+          smtp_host?: string
+          smtp_pass_encrypted?: string | null
+          smtp_port?: number
+          smtp_user?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      recipients: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          email: string
+          error_message: string | null
+          id: string
+          name: string | null
+          opened_at: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          email: string
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          email?: string
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      decrypt_smtp_pass: { Args: { _cipher: string }; Returns: string }
+      encrypt_smtp_pass: { Args: { _plain: string }; Returns: string }
+      increment_emails_sent: {
+        Args: { _amount: number; _user_id: string }
+        Returns: undefined
+      }
+      set_smtp_password: { Args: { _plain: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
