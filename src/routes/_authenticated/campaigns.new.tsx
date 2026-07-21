@@ -283,6 +283,49 @@ function NewCampaign() {
         </p>
       </div>
 
+      <div className="rounded-xl bg-brand-surface p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold flex items-center gap-2"><Paperclip className="h-4 w-4" /> Anexos</h2>
+            <p className="text-xs text-muted-foreground">
+              Até {MAX_ATTACHMENTS} arquivos, máx. 5MB cada · {attachments.length}/{MAX_ATTACHMENTS} adicionados
+            </p>
+          </div>
+          <label className={`inline-flex items-center gap-2 cursor-pointer rounded-md border border-brand-surface-hover px-3 py-2 text-sm font-medium hover:bg-brand-surface-hover/30 ${attachments.length >= MAX_ATTACHMENTS ? "opacity-50 pointer-events-none" : ""}`}>
+            <Upload className="h-4 w-4" />
+            Adicionar anexo
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                handleAttachmentPick(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+        {attachments.length > 0 && (
+          <div className="divide-y divide-brand-surface-hover/40 rounded-md border border-brand-surface-hover/40">
+            {attachments.map((f, i) => (
+              <div key={`${f.name}-${i}`} className="flex items-center justify-between px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate">{f.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatSize(f.size)} · {f.type || "arquivo"}</p>
+                </div>
+                <button
+                  className="text-muted-foreground hover:text-destructive ml-3"
+                  onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label="Remover anexo"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex justify-end gap-3">
         <Button variant="secondary" disabled={busy} onClick={() => submit(false)}>Salvar rascunho</Button>
         <Button disabled={busy} className="gradient-brand text-primary-foreground" onClick={() => submit(true)}>
@@ -291,6 +334,25 @@ function NewCampaign() {
       </div>
     </div>
   );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler arquivo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function downloadCsvTemplate() {
