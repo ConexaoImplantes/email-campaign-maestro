@@ -14,7 +14,7 @@ export const Route = createFileRoute("/api/public/hooks/process-campaigns")({
         }
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { decryptSecret } = await import("@/lib/crypto.server");
-        const { sendMail, injectTrackingPixel } = await import("@/lib/smtp.server");
+        const { sendMail, injectTrackingPixel, extractInlineImages } = await import("@/lib/smtp.server");
 
         // Find active campaigns (processing)
         const { data: campaigns, error: cErr } = await supabaseAdmin
