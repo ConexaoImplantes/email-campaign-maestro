@@ -4,28 +4,119 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * Design system definition.
- *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
- */
+/* ============================================================
+   CONEXÃO IMPLANTES — DESIGN SYSTEM
+   Dark navy + dourado metálico.
+   Todos os componentes shadcn consomem estes tokens.
+   Nunca escrever cores hardcoded em componentes.
+   ============================================================ */
+
+:root {
+  /* Base */
+  --brand-bg: #0f172a;
+  --brand-surface: #1e293b;
+  --brand-surface-hover: #334155;
+  --brand-card: #1e293b;
+
+  /* Typography */
+  --brand-text-main: #f8fafc;
+  --brand-text-muted: #94a3b8;
+  --brand-text-inverted: #0f172a;
+
+  /* Borders */
+  --brand-border: transparent;
+  --brand-border-subtle: #1e293b;
+
+  /* Accent (dourado) */
+  --brand-accent: #c9a655;
+  --brand-accent-hover: #d4b366;
+  --brand-accent-fg: #0f172a;
+  --brand-accent-muted: rgba(201, 166, 85, 0.12);
+
+  /* Gradientes */
+  --brand-gradient-start: #c9a655;
+  --brand-gradient-mid: #e8d48b;
+  --brand-gradient-end: #a8873a;
+  --brand-gradient: linear-gradient(
+    135deg,
+    var(--brand-gradient-start) 0%,
+    var(--brand-gradient-mid) 40%,
+    var(--brand-gradient-end) 70%,
+    var(--brand-gradient-start) 100%
+  );
+
+  /* Feedback */
+  --brand-success: #22c55e;
+  --brand-success-bg: rgba(34, 197, 94, 0.12);
+  --brand-warning: #eab308;
+  --brand-warning-bg: rgba(234, 179, 8, 0.12);
+  --brand-error: #ef4444;
+  --brand-error-bg: rgba(239, 68, 68, 0.12);
+
+  /* Componentes */
+  --brand-input-bg: #0f172a;
+  --brand-input-border: #334155;
+  --brand-input-focus: #c9a655;
+  --brand-badge-bg: #334155;
+
+  /* Efeitos */
+  --brand-ring: rgba(201, 166, 85, 0.5);
+  --brand-hover-shadow: rgba(201, 166, 85, 0.15);
+  --brand-shadow: rgba(0, 0, 0, 0.4);
+  --brand-header-bg: #1e293b;
+
+  /* Radii */
+  --radius: 0.625rem;
+
+  /* shadcn semantic tokens — pontos para os brand tokens acima */
+  --background: var(--brand-bg);
+  --foreground: var(--brand-text-main);
+  --card: var(--brand-card);
+  --card-foreground: var(--brand-text-main);
+  --popover: var(--brand-surface);
+  --popover-foreground: var(--brand-text-main);
+  --primary: var(--brand-accent);
+  --primary-foreground: var(--brand-accent-fg);
+  --secondary: var(--brand-surface);
+  --secondary-foreground: var(--brand-text-main);
+  --muted: var(--brand-surface);
+  --muted-foreground: var(--brand-text-muted);
+  --accent: var(--brand-surface-hover);
+  --accent-foreground: var(--brand-text-main);
+  --destructive: var(--brand-error);
+  --destructive-foreground: var(--brand-text-main);
+  --border: var(--brand-input-border);
+  --input: var(--brand-input-border);
+  --ring: var(--brand-input-focus);
+  --sidebar: var(--brand-surface);
+  --sidebar-foreground: var(--brand-text-main);
+  --sidebar-primary: var(--brand-accent);
+  --sidebar-primary-foreground: var(--brand-accent-fg);
+  --sidebar-accent: var(--brand-surface-hover);
+  --sidebar-accent-foreground: var(--brand-text-main);
+  --sidebar-border: var(--brand-border-subtle);
+  --sidebar-ring: var(--brand-input-focus);
+  --chart-1: var(--brand-accent);
+  --chart-2: var(--brand-success);
+  --chart-3: var(--brand-warning);
+  --chart-4: var(--brand-error);
+  --chart-5: var(--brand-text-muted);
+}
+
+/* Dark class não altera nada — o app já é dark por padrão. */
+.dark {
+  color-scheme: dark;
+}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -59,77 +150,44 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Extras da marca — utilities diretos */
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-hover: var(--brand-accent-hover);
+  --color-brand-success: var(--brand-success);
+  --color-brand-warning: var(--brand-warning);
+  --color-brand-error: var(--brand-error);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-surface-hover: var(--brand-surface-hover);
+  --color-brand-text-muted: var(--brand-text-muted);
 }
 
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+@utility gradient-brand {
+  background: var(--brand-gradient);
 }
 
-.dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+@utility text-gradient-brand {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+@utility ring-brand {
+  box-shadow: 0 0 0 3px var(--brand-ring);
+}
+
+@utility card-hover-glow {
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease,
+    border-color 200ms ease;
+  &:hover {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow: 0 12px 40px -12px var(--brand-hover-shadow);
+    border-color: rgba(201, 166, 85, 0.25);
+  }
 }
 
 @layer base {
@@ -137,8 +195,38 @@
     border-color: var(--color-border);
   }
 
+  html,
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  /* Scrollbar dourada da marca */
+  * {
+    scrollbar-color: var(--brand-accent) transparent;
+    scrollbar-width: thin;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--brand-accent);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
 }
