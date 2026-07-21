@@ -9,8 +9,9 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/campaigns/new", label: "Nova campanha" },
-  { to: "/settings", label: "SMTP" },
 ] as const;
+
+const ADMIN_NAV = [{ to: "/settings", label: "SMTP" }] as const;
 
 export function AppHeader() {
   const navigate = useNavigate();
