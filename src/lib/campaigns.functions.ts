@@ -130,6 +130,7 @@ export const createCampaign = createServerFn({ method: "POST" })
   .inputValidator((v) => createCampaignInput.parse(v))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    await assertApproved(supabase, userId);
     const { data: camp, error } = await supabase
       .from("campaigns")
       .insert({
