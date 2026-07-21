@@ -281,13 +281,14 @@ function UserRow({
   return (
     <div className="grid grid-cols-12 gap-3 px-4 py-4 items-center border-b border-brand-surface-hover/30 last:border-0">
       <div className="col-span-4 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <p className="font-medium truncate">{user.email ?? user.id.slice(0, 8)}</p>
           {user.is_admin && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-accent/20 text-brand-accent uppercase tracking-wider">
               Admin
             </span>
           )}
+          <StatusBadge status={user.status} />
         </div>
         <p className="text-xs text-muted-foreground truncate">{user.smtp_user ?? "sem SMTP"}</p>
       </div>
