@@ -80,10 +80,29 @@ export const Route = createFileRoute("/api/public/hooks/process-campaigns")({
             fromName: profile.from_name,
           };
 
+          // Load attachments once per campaign
+          const { data: attRows } = await supabaseAdmin
+            .from("campaign_attachments")
+            .select("filename, mime_type, content_base64")
+            .eq("campaign_id", camp.id);
+          const attachments = (attRows ?? []).map((a) => ({
+            filename: a.filename as string,
+            content: Buffer.from(a.content_base64 as string, "base64"),
+            contentType: a.mime_type as string,
+          }));
+
           let sentInBatch = 0;
           for (const r of pending) {
+            // Re-check status in case user paused mid-batch
+            const { data: stateRow } = await supabaseAdmin
+              .from("campaigns")
+              .select("status")
+              .eq("id", camp.id)
+              .maybeSingle();
+            if (stateRow?.status !== "processing") break;
+
             const html = injectTrackingPixel(camp.body_content ?? "", trackBase, r.id);
-            const res = await sendMail(cfg, { email: r.email, name: r.name }, camp.subject, html);
+            const res = await sendMail(cfg, { email: r.email, name: r.name }, camp.subject, html, attachments);
             const now = new Date().toISOString();
             if (res.ok) {
               await supabaseAdmin

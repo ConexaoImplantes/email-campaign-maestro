@@ -66,11 +66,18 @@ export async function verifySmtp(cfg: SmtpConfig): Promise<SendResult> {
   }
 }
 
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
 export async function sendMail(
   cfg: SmtpConfig,
   to: { email: string; name?: string | null },
   subject: string,
   html: string,
+  attachments?: MailAttachment[],
 ): Promise<SendResult> {
   const transporter = createTransport(cfg);
   try {
@@ -80,6 +87,11 @@ export async function sendMail(
       subject,
       html,
       text: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+      attachments: attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+      })),
     });
     return { ok: true };
   } catch (e) {

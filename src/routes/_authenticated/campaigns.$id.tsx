@@ -1,13 +1,13 @@
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef } from "react";
-import { getCampaign, getRecipients, setCampaignStatus } from "@/lib/campaigns.functions";
+import { getCampaign, getRecipients, setCampaignStatus, cloneCampaign, listAttachments } from "@/lib/campaigns.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Play, Pause } from "lucide-react";
+import { Play, Pause, Copy, Paperclip } from "lucide-react";
 
 const campaignQuery = (id: string) =>
   queryOptions({
@@ -20,6 +20,11 @@ const recipientsQuery = (id: string) =>
     queryKey: ["recipients", id],
     queryFn: () => getRecipients({ data: { campaign_id: id } }),
     refetchInterval: 2000,
+  });
+const attachmentsQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["attachments", id],
+    queryFn: () => listAttachments({ data: { campaign_id: id } }),
   });
 
 export const Route = createFileRoute("/_authenticated/campaigns/$id")({
@@ -37,7 +42,10 @@ export const Route = createFileRoute("/_authenticated/campaigns/$id")({
   loader: async ({ context, params }) => {
     const c = await context.queryClient.ensureQueryData(campaignQuery(params.id));
     if (!c) throw notFound();
-    await context.queryClient.ensureQueryData(recipientsQuery(params.id));
+    await Promise.all([
+      context.queryClient.ensureQueryData(recipientsQuery(params.id)),
+      context.queryClient.ensureQueryData(attachmentsQuery(params.id)),
+    ]);
     return c;
   },
   errorComponent: ({ error, reset }) => (
@@ -53,10 +61,13 @@ export const Route = createFileRoute("/_authenticated/campaigns/$id")({
 function CampaignDetail() {
   const { id } = Route.useParams();
   const router = useRouter();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: c } = useSuspenseQuery(campaignQuery(id));
   const { data: recipients } = useSuspenseQuery(recipientsQuery(id));
+  const { data: attachments } = useSuspenseQuery(attachmentsQuery(id));
   const setStatus = useServerFn(setCampaignStatus);
+  const clone = useServerFn(cloneCampaign);
   const prevStatusRef = useRef<string | null>(null);
 
   // Realtime updates via Supabase channels
@@ -110,11 +121,11 @@ function CampaignDetail() {
               className="gradient-brand text-primary-foreground"
               onClick={async () => {
                 await setStatus({ data: { id, status: "processing" } });
-                toast.success("Envio iniciado");
+                toast.success(c.status === "paused" ? "Envio retomado" : "Envio iniciado");
                 router.invalidate();
               }}
             >
-              <Play className="h-4 w-4 mr-1" /> Iniciar
+              <Play className="h-4 w-4 mr-1" /> {c.status === "paused" ? "Retomar" : "Iniciar"}
             </Button>
           ) : c.status === "processing" ? (
             <Button
@@ -129,8 +140,38 @@ function CampaignDetail() {
               <Pause className="h-4 w-4 mr-1" /> Pausar
             </Button>
           ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              try {
+                const { id: newId } = await clone({ data: { id } });
+                toast.success("Campanha clonada");
+                navigate({ to: "/campaigns/$id", params: { id: newId } });
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Falha ao clonar");
+              }
+            }}
+          >
+            <Copy className="h-4 w-4 mr-1" /> Clonar
+          </Button>
         </div>
       </div>
+
+      {attachments.length > 0 && (
+        <section className="rounded-xl bg-brand-surface p-4">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+            <Paperclip className="h-3.5 w-3.5" /> Anexos ({attachments.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((a) => (
+              <span key={a.id} className="text-xs rounded-md bg-brand-badge-bg px-2 py-1">
+                {a.filename} <span className="text-muted-foreground">· {formatSize(a.size_bytes)}</span>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-xl bg-brand-surface p-6">
         <div className="flex justify-between text-sm mb-2">
@@ -222,4 +263,10 @@ function playCompletionSound() {
   } catch {
     // ignore audio errors
   }
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }

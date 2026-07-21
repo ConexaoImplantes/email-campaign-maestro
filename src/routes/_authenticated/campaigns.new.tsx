@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import Papa from "papaparse";
 import { useServerFn } from "@tanstack/react-start";
-import { createCampaign, setCampaignStatus, getProfile } from "@/lib/campaigns.functions";
+import { createCampaign, setCampaignStatus, getProfile, addAttachment } from "@/lib/campaigns.functions";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Upload, X, Download } from "lucide-react";
+import { Upload, X, Download, Paperclip } from "lucide-react";
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_ATTACHMENTS = 2;
 
 const profileQuery = queryOptions({ queryKey: ["profile"], queryFn: () => getProfile() });
 
@@ -43,15 +46,35 @@ function NewCampaign() {
   const navigate = useNavigate();
   const create = useServerFn(createCampaign);
   const setStatus = useServerFn(setCampaignStatus);
+  const addAtt = useServerFn(addAttachment);
 
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [contentType, setContentType] = useState<"richtext" | "html">("richtext");
   const [body, setBody] = useState("");
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
   const [busy, setBusy] = useState(false);
+
+  function handleAttachmentPick(files: FileList | null) {
+    if (!files) return;
+    const picked = Array.from(files);
+    const next = [...attachments];
+    for (const f of picked) {
+      if (next.length >= MAX_ATTACHMENTS) {
+        toast.error(`Máximo de ${MAX_ATTACHMENTS} anexos`);
+        break;
+      }
+      if (f.size > MAX_ATTACHMENT_BYTES) {
+        toast.error(`"${f.name}" excede 5MB`);
+        continue;
+      }
+      next.push(f);
+    }
+    setAttachments(next);
+  }
 
   function handleCsv(file: File) {
     Papa.parse<Record<string, string>>(file, {
@@ -103,9 +126,22 @@ function NewCampaign() {
           recipients,
         },
       });
+      // Upload attachments (if any)
+      for (const file of attachments) {
+        const base64 = await fileToBase64(file);
+        await addAtt({
+          data: {
+            campaign_id: id,
+            filename: file.name,
+            mime_type: file.type || "application/octet-stream",
+            size_bytes: file.size,
+            content_base64: base64,
+          },
+        });
+      }
       if (startNow) {
         await setStatus({ data: { id, status: "processing" } });
-        toast.success("Campanha iniciada! O disparo roda a cada minuto.");
+        toast.success("Campanha iniciada! O envio roda em segundo plano.");
       } else {
         toast.success("Rascunho salvo");
       }
@@ -247,6 +283,49 @@ function NewCampaign() {
         </p>
       </div>
 
+      <div className="rounded-xl bg-brand-surface p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold flex items-center gap-2"><Paperclip className="h-4 w-4" /> Anexos</h2>
+            <p className="text-xs text-muted-foreground">
+              Até {MAX_ATTACHMENTS} arquivos, máx. 5MB cada · {attachments.length}/{MAX_ATTACHMENTS} adicionados
+            </p>
+          </div>
+          <label className={`inline-flex items-center gap-2 cursor-pointer rounded-md border border-brand-surface-hover px-3 py-2 text-sm font-medium hover:bg-brand-surface-hover/30 ${attachments.length >= MAX_ATTACHMENTS ? "opacity-50 pointer-events-none" : ""}`}>
+            <Upload className="h-4 w-4" />
+            Adicionar anexo
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                handleAttachmentPick(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+        {attachments.length > 0 && (
+          <div className="divide-y divide-brand-surface-hover/40 rounded-md border border-brand-surface-hover/40">
+            {attachments.map((f, i) => (
+              <div key={`${f.name}-${i}`} className="flex items-center justify-between px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate">{f.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatSize(f.size)} · {f.type || "arquivo"}</p>
+                </div>
+                <button
+                  className="text-muted-foreground hover:text-destructive ml-3"
+                  onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label="Remover anexo"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex justify-end gap-3">
         <Button variant="secondary" disabled={busy} onClick={() => submit(false)}>Salvar rascunho</Button>
         <Button disabled={busy} className="gradient-brand text-primary-foreground" onClick={() => submit(true)}>
@@ -255,6 +334,25 @@ function NewCampaign() {
       </div>
     </div>
   );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler arquivo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function downloadCsvTemplate() {
