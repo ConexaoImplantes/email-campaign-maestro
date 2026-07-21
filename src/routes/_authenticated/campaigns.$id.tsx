@@ -1,7 +1,9 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useRef } from "react";
 import { getCampaign, getRecipients, setCampaignStatus } from "@/lib/campaigns.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -11,12 +13,13 @@ const campaignQuery = (id: string) =>
   queryOptions({
     queryKey: ["campaign", id],
     queryFn: () => getCampaign({ data: { id } }),
+    refetchInterval: 2000,
   });
 const recipientsQuery = (id: string) =>
   queryOptions({
     queryKey: ["recipients", id],
     queryFn: () => getRecipients({ data: { campaign_id: id } }),
-    refetchInterval: 5000,
+    refetchInterval: 2000,
   });
 
 export const Route = createFileRoute("/_authenticated/campaigns/$id")({
