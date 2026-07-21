@@ -170,6 +170,96 @@ export const adminSaveUserSmtp = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---------- Default (global) SMTP ----------
+
+export const getDefaultSmtp = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("smtp_host, smtp_port, smtp_user, smtp_pass_encrypted, from_name, updated_at")
+      .eq("id", "default")
+      .maybeSingle();
+    return {
+      smtp_host: data?.smtp_host ?? "smtp.gmail.com",
+      smtp_port: data?.smtp_port ?? 587,
+      smtp_user: data?.smtp_user ?? "",
+      from_name: data?.from_name ?? "",
+      configured: Boolean(data?.smtp_pass_encrypted && data?.smtp_host && data?.smtp_user),
+      updated_at: data?.updated_at ?? null,
+    };
+  });
+
+const defaultSmtpInput = z.object({
+  smtp_host: z.string().min(1).max(200),
+  smtp_port: z.number().int().min(1).max(65535),
+  smtp_user: z.string().email().max(200),
+  smtp_pass: z.string().min(1).max(500).optional(),
+  from_name: z.string().max(120).nullable().optional(),
+});
+
+export const saveDefaultSmtp = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) => defaultSmtpInput.parse(v))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let encrypted: string | undefined;
+    if (data.smtp_pass && data.smtp_pass.length > 0) {
+      const { encryptSecret } = await import("@/lib/crypto.server");
+      encrypted = await encryptSecret(data.smtp_pass);
+    }
+    const patch = {
+      smtp_host: data.smtp_host,
+      smtp_port: data.smtp_port,
+      smtp_user: data.smtp_user,
+      from_name: data.from_name ?? null,
+      ...(encrypted ? { smtp_pass_encrypted: encrypted } : {}),
+    };
+    const { error } = await supabaseAdmin.from("app_settings").update(patch).eq("id", "default");
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const testDefaultSmtp = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) =>
+    z
+      .object({
+        smtp_host: z.string().min(1),
+        smtp_port: z.number().int().min(1).max(65535),
+        smtp_user: z.string().email(),
+        smtp_pass: z.string().min(1).optional(),
+      })
+      .parse(v),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { verifySmtp } = await import("@/lib/smtp.server");
+    let pass = data.smtp_pass;
+    if (!pass) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: row } = await supabaseAdmin
+        .from("app_settings")
+        .select("smtp_pass_encrypted")
+        .eq("id", "default")
+        .maybeSingle();
+      if (!row?.smtp_pass_encrypted) {
+        return { ok: false, error: "Nenhuma senha SMTP padrão salva." };
+      }
+      const { decryptSecret } = await import("@/lib/crypto.server");
+      pass = await decryptSecret(row.smtp_pass_encrypted as string);
+    }
+    return verifySmtp({
+      host: data.smtp_host,
+      port: data.smtp_port,
+      user: data.smtp_user,
+      pass: pass!,
+    });
+  });
+
 export const adminGlobalStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
