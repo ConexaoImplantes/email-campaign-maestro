@@ -16,6 +16,20 @@ export const getProfile = createServerFn({ method: "GET" })
       .eq("id", userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
+
+    const userConfigured = Boolean(data?.smtp_pass_encrypted);
+    // Fall back to global default SMTP if the user has none of their own.
+    let defaultConfigured = false;
+    if (!userConfigured) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: def } = await supabaseAdmin
+        .from("app_settings")
+        .select("smtp_host, smtp_user, smtp_pass_encrypted")
+        .eq("id", "default")
+        .maybeSingle();
+      defaultConfigured = Boolean(def?.smtp_pass_encrypted && def?.smtp_host && def?.smtp_user);
+    }
+
     return {
       id: data?.id ?? userId,
       email: data?.email ?? null,
@@ -26,7 +40,8 @@ export const getProfile = createServerFn({ method: "GET" })
       daily_limit: data?.daily_limit ?? 300,
       emails_sent_today: data?.emails_sent_today ?? 0,
       last_reset_date: data?.last_reset_date ?? null,
-      smtp_configured: Boolean(data?.smtp_pass_encrypted),
+      smtp_configured: userConfigured || defaultConfigured,
+      smtp_source: userConfigured ? ("user" as const) : defaultConfigured ? ("default" as const) : ("none" as const),
       status: (data?.status ?? "pending") as "pending" | "approved" | "rejected",
     };
   });
