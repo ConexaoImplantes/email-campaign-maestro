@@ -172,6 +172,13 @@ function CampaignDetail() {
           </div>
         </section>
       )}
+
+      <section className="rounded-xl bg-brand-surface p-6">
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-muted-foreground">Progresso</span>
+          <span className="font-medium">{sent + failed} / {recipients.length}</span>
+        </div>
+        <Progress value={progressPct} className="h-2" />
         <div className="grid grid-cols-4 gap-4 mt-6 text-center">
           <div><p className="text-2xl font-semibold">{sent}</p><p className="text-xs text-muted-foreground">Enviados</p></div>
           <div><p className="text-2xl font-semibold text-brand-success">{opened}</p><p className="text-xs text-muted-foreground">Abertos</p></div>
