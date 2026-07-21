@@ -115,6 +115,8 @@ function AdminPage() {
   const saveSmtp = useServerFn(adminSaveUserSmtp);
   const approve = useServerFn(adminApproveUser);
   const reject = useServerFn(adminRejectUser);
+  const resetUsage = useServerFn(adminResetDailyUsage);
+  const [resettingAll, setResettingAll] = useState(false);
 
   const pending = users.filter((u) => u.status === "pending");
   const pct = stats.totalLimit > 0 ? Math.min(100, Math.round((stats.usedToday / stats.totalLimit) * 100)) : 0;
@@ -129,6 +131,29 @@ function AdminPage() {
     await reject({ data: { user_id: userId } });
     toast.success("Usuário rejeitado");
     qc.invalidateQueries({ queryKey: ["admin-users"] });
+  }
+  async function handleResetAll() {
+    setResettingAll(true);
+    try {
+      await resetUsage({ data: { all: true } });
+      toast.success("Consumo diário zerado para todos os usuários");
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-global-stats"] });
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    } finally {
+      setResettingAll(false);
+    }
+  }
+  async function handleResetOne(userId: string) {
+    try {
+      await resetUsage({ data: { user_id: userId } });
+      toast.success("Consumo do usuário zerado");
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-global-stats"] });
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
   }
 
 
