@@ -9,6 +9,7 @@ import {
   adminSaveUserSmtp,
   adminApproveUser,
   adminRejectUser,
+  adminResetDailyUsage,
   isAdmin,
 } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
   CheckCircle2,
   Ban,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 
 const adminGuardQuery = queryOptions({
@@ -113,6 +115,8 @@ function AdminPage() {
   const saveSmtp = useServerFn(adminSaveUserSmtp);
   const approve = useServerFn(adminApproveUser);
   const reject = useServerFn(adminRejectUser);
+  const resetUsage = useServerFn(adminResetDailyUsage);
+  const [resettingAll, setResettingAll] = useState(false);
 
   const pending = users.filter((u) => u.status === "pending");
   const pct = stats.totalLimit > 0 ? Math.min(100, Math.round((stats.usedToday / stats.totalLimit) * 100)) : 0;
@@ -127,6 +131,29 @@ function AdminPage() {
     await reject({ data: { user_id: userId } });
     toast.success("Usuário rejeitado");
     qc.invalidateQueries({ queryKey: ["admin-users"] });
+  }
+  async function handleResetAll() {
+    setResettingAll(true);
+    try {
+      await resetUsage({ data: { all: true } });
+      toast.success("Consumo diário zerado para todos os usuários");
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-global-stats"] });
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    } finally {
+      setResettingAll(false);
+    }
+  }
+  async function handleResetOne(userId: string) {
+    try {
+      await resetUsage({ data: { user_id: userId } });
+      toast.success("Consumo do usuário zerado");
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-global-stats"] });
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
   }
 
 
@@ -162,11 +189,22 @@ function AdminPage() {
       </section>
 
       <section className="rounded-xl bg-brand-surface p-6">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 gap-3">
           <h2 className="text-lg font-semibold">Consumo diário global</h2>
-          <span className="text-sm text-muted-foreground">
-            {stats.usedToday} / {stats.totalLimit} emails hoje
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {stats.usedToday} / {stats.totalLimit} emails hoje
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleResetAll}
+              disabled={resettingAll}
+            >
+              <RotateCcw className="h-4 w-4 mr-1.5" />
+              {resettingAll ? "Zerando…" : "Resetar todos"}
+            </Button>
+          </div>
         </div>
         <Progress value={pct} className="h-2" />
       </section>
@@ -223,6 +261,7 @@ function AdminPage() {
                 toast.success("SMTP atualizado");
                 qc.invalidateQueries({ queryKey: ["admin-users"] });
               }}
+              onResetUsage={() => handleResetOne(u.id)}
             />
           ))}
           {users.length === 0 && (
@@ -262,6 +301,7 @@ function UserRow({
   user,
   onSaveLimit,
   onSaveSmtp,
+  onResetUsage,
 }: {
   user: AdminUser;
   onSaveLimit: (limit: number) => Promise<void>;
@@ -272,6 +312,7 @@ function UserRow({
     smtp_pass?: string;
     from_name?: string | null;
   }) => Promise<void>;
+  onResetUsage: () => Promise<void>;
 }) {
   const [limit, setLimit] = useState(user.daily_limit);
   const [savingLimit, setSavingLimit] = useState(false);
@@ -338,7 +379,16 @@ function UserRow({
           {user.stats.failed} falhas · {user.stats.opened} aberturas
         </p>
       </div>
-      <div className="col-span-1 flex justify-end">
+      <div className="col-span-1 flex justify-end gap-1">
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Zerar consumo diário"
+          title="Zerar consumo diário"
+          onClick={onResetUsage}
+        >
+          <RotateCcw className="h-4 w-4" />
+        </Button>
         <Dialog open={smtpOpen} onOpenChange={setSmtpOpen}>
           <DialogTrigger asChild>
             <Button size="icon" variant="ghost" aria-label="Editar SMTP">
