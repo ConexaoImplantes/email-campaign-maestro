@@ -89,6 +89,33 @@ function Dashboard() {
 
   const pct = Math.min(100, Math.round((stats.usedToday / stats.dailyLimit) * 100));
 
+  if (profile.status !== "approved") {
+    return (
+      <div className="max-w-2xl mx-auto rounded-xl bg-brand-surface p-8 text-center space-y-4">
+        <div className="mx-auto h-12 w-12 rounded-full gradient-brand text-primary-foreground flex items-center justify-center">
+          <AlertTriangle className="h-6 w-6" />
+        </div>
+        {profile.status === "pending" ? (
+          <>
+            <h1 className="text-2xl font-semibold">Aguardando aprovação</h1>
+            <p className="text-muted-foreground">
+              Seu cadastro foi recebido e está aguardando aprovação do Super Admin. Você
+              receberá acesso ao painel assim que sua conta e cota diária forem liberadas.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold">Acesso rejeitado</h1>
+            <p className="text-muted-foreground">
+              Seu cadastro foi rejeitado pelo Super Admin. Entre em contato com o
+              administrador da plataforma se acreditar que se trata de um engano.
+            </p>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {!profile.smtp_configured && (
