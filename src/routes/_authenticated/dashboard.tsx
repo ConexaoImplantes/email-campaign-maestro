@@ -9,8 +9,20 @@ import {
 } from "@/lib/campaigns.functions";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Send, XCircle, Eye, MailCheck, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
 
 const statsQuery = queryOptions({
   queryKey: ["dashboard-stats"],
@@ -139,19 +151,42 @@ function Dashboard() {
                 </Link>
                 <div className="flex items-center gap-3">
                   <StatusBadge status={c.status} />
-                  <button
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      if (!confirm("Excluir esta campanha?")) return;
-                      await del({ data: { id: c.id } });
-                      toast.success("Campanha excluída");
-                      router.invalidate();
-                    }}
-                    className="text-muted-foreground hover:text-destructive p-1"
-                    aria-label="Excluir"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button
+                        onClick={(e) => e.preventDefault()}
+                        className="text-muted-foreground hover:text-destructive p-1"
+                        aria-label="Excluir"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir campanha?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta ação é permanente. A campanha "{c.title}" e todos os seus destinatários serão removidos.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={async () => {
+                            try {
+                              await del({ data: { id: c.id } });
+                              toast.success("Campanha excluída");
+                              router.invalidate();
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "Falha ao excluir");
+                            }
+                          }}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             ))}
