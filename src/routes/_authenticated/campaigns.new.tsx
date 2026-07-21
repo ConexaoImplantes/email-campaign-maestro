@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Download } from "lucide-react";
 
 const profileQuery = queryOptions({ queryKey: ["profile"], queryFn: () => getProfile() });
 
@@ -174,20 +174,31 @@ function NewCampaign() {
               {recipients.length} contatos {recipients.length > 0 && `· ${estimatedDays(recipients.length, profile.daily_limit)}`}
             </p>
           </div>
-          <label className="inline-flex items-center gap-2 cursor-pointer rounded-md gradient-brand px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
-            <Upload className="h-4 w-4" />
-            Importar CSV
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleCsv(f);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={downloadCsvTemplate}
+            >
+              <Download className="h-4 w-4 mr-1.5" />
+              Modelo CSV
+            </Button>
+            <label className="inline-flex items-center gap-2 cursor-pointer rounded-md gradient-brand px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
+              <Upload className="h-4 w-4" />
+              Importar CSV
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleCsv(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
         </div>
 
         <div className="flex gap-2">
@@ -244,6 +255,25 @@ function NewCampaign() {
       </div>
     </div>
   );
+}
+
+function downloadCsvTemplate() {
+  const rows = [
+    ["name", "email"],
+    ["João Silva", "joao.silva@email.com"],
+    ["Maria Souza", "maria.souza@email.com"],
+    ["Clínica Odonto", "contato@clinicaodonto.com"],
+  ];
+  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "modelo-destinatarios-conexao-implantes.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function dedupe(arr: Recipient[]): Recipient[] {
