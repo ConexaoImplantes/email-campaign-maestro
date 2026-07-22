@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter, useNavigate } from "@tanstack/react-router";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listCampaigns, deleteCampaign, cloneCampaign } from "@/lib/campaigns.functions";
+import { listCampaigns, deleteCampaign, cloneCampaign, updateCampaign, getCampaign } from "@/lib/campaigns.functions";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -14,9 +14,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 const campaignsQuery = queryOptions({
@@ -34,6 +45,8 @@ const FILTERS = [
 ] as const;
 
 type FilterKey = (typeof FILTERS)[number]["key"];
+
+type CampaignRow = Awaited<ReturnType<typeof listCampaigns>>[number];
 
 export const Route = createFileRoute("/_authenticated/campaigns/")({
   head: () => ({
@@ -57,10 +70,12 @@ export const Route = createFileRoute("/_authenticated/campaigns/")({
 function CampaignsList() {
   const router = useRouter();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { data: campaigns } = useSuspenseQuery(campaignsQuery);
   const del = useServerFn(deleteCampaign);
   const clone = useServerFn(cloneCampaign);
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [editing, setEditing] = useState<CampaignRow | null>(null);
 
   const counts = useMemo(() => {
     const acc: Record<string, number> = { all: campaigns.length };
@@ -69,6 +84,11 @@ function CampaignsList() {
   }, [campaigns]);
 
   const filtered = filter === "all" ? campaigns : campaigns.filter((c) => c.status === filter);
+
+  const refresh = async () => {
+    await qc.invalidateQueries({ queryKey: ["campaigns"] });
+    router.invalidate();
+  };
 
   return (
     <div className="space-y-6">
@@ -88,6 +108,7 @@ function CampaignsList() {
         {FILTERS.map((f) => (
           <button
             key={f.key}
+            type="button"
             onClick={() => setFilter(f.key)}
             className={cn(
               "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
@@ -120,22 +141,23 @@ function CampaignsList() {
               </Link>
               <div className="flex items-center gap-3">
                 <StatusBadge status={c.status} />
-                <Link
-                  to="/campaigns/$id/edit"
-                  params={{ id: c.id }}
+                <button
+                  type="button"
+                  onClick={() => setEditing(c)}
                   className="text-muted-foreground hover:text-brand-accent p-1"
                   aria-label="Editar"
                   title="Editar campanha"
                 >
                   <Pencil className="h-4 w-4" />
-                </Link>
+                </button>
                 <button
-                  onClick={async (e) => {
-                    e.preventDefault();
+                  type="button"
+                  onClick={async () => {
                     try {
                       const { id } = await clone({ data: { id: c.id } });
                       toast.success("Campanha clonada");
-                      navigate({ to: "/campaigns/$id", params: { id } });
+                      await refresh();
+                      navigate({ to: "/campaigns/$id/edit", params: { id } });
                     } catch (err) {
                       toast.error(err instanceof Error ? err.message : "Falha ao clonar");
                     }
@@ -149,9 +171,10 @@ function CampaignsList() {
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <button
-                      onClick={(e) => e.preventDefault()}
+                      type="button"
                       className="text-muted-foreground hover:text-destructive p-1"
                       aria-label="Excluir"
+                      title="Excluir campanha"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -170,7 +193,7 @@ function CampaignsList() {
                           try {
                             await del({ data: { id: c.id } });
                             toast.success("Campanha excluída");
-                            router.invalidate();
+                            await refresh();
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Falha ao excluir");
                           }
@@ -187,7 +210,130 @@ function CampaignsList() {
           ))}
         </div>
       )}
+
+      <EditCampaignDialog
+        campaign={editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+        onSaved={refresh}
+      />
     </div>
+  );
+}
+
+function EditCampaignDialog({
+  campaign,
+  onOpenChange,
+  onSaved,
+}: {
+  campaign: CampaignRow | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void | Promise<void>;
+}) {
+  const update = useServerFn(updateCampaign);
+  const fetchCampaign = useServerFn(getCampaign);
+  const [title, setTitle] = useState("");
+  const [subject, setSubject] = useState("");
+  const [contentType, setContentType] = useState<"richtext" | "html">("html");
+  const [body, setBody] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const currentId = campaign?.id ?? null;
+
+  useEffect(() => {
+    if (!currentId) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchCampaign({ data: { id: currentId } })
+      .then((full) => {
+        if (cancelled || !full) return;
+        setTitle(full.title ?? "");
+        setSubject(full.subject ?? "");
+        setContentType(((full.content_type as "richtext" | "html") ?? "html"));
+        setBody(full.body_content ?? "");
+      })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Falha ao carregar"))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [currentId, fetchCampaign]);
+
+  const onSave = async () => {
+    if (!campaign) return;
+    setSaving(true);
+    try {
+      await update({
+        data: { id: campaign.id, title, subject, content_type: contentType, body_content: body },
+      });
+      toast.success("Campanha atualizada");
+      await onSaved();
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!campaign} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar campanha</DialogTitle>
+          <DialogDescription>Atualize título, assunto e conteúdo da campanha.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="edit-title">Título</Label>
+            <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} />
+          </div>
+          <div>
+            <Label htmlFor="edit-subject">Assunto</Label>
+            <Input id="edit-subject" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={300} />
+          </div>
+          <div>
+            <Label>Tipo de conteúdo</Label>
+            <div className="flex gap-3 mt-2">
+              {(["html", "richtext"] as const).map((t) => (
+                <label key={t} className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="edit_content_type"
+                    value={t}
+                    checked={contentType === t}
+                    onChange={() => setContentType(t)}
+                  />
+                  {t === "html" ? "HTML" : "Texto formatado"}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="edit-body">Conteúdo</Label>
+            <Textarea
+              id="edit-body"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={14}
+              className="font-mono text-xs"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button
+            className="gradient-brand text-primary-foreground"
+            onClick={onSave}
+            disabled={saving || loading}
+          >
+            {saving ? "Salvando…" : loading ? "Carregando…" : "Salvar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
