@@ -20,6 +20,7 @@ import { Route as AuthenticatedCampaignsNewRouteImport } from './routes/_authent
 import { Route as AuthenticatedCampaignsIdRouteImport } from './routes/_authenticated/campaigns.$id'
 import { Route as ApiPublicHooksTrackOpenRouteImport } from './routes/api/public/hooks/track-open'
 import { Route as ApiPublicHooksProcessCampaignsRouteImport } from './routes/api/public/hooks/process-campaigns'
+import { Route as AuthenticatedCampaignsIdEditRouteImport } from './routes/_authenticated/campaigns.$id.edit'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -79,6 +80,12 @@ const ApiPublicHooksProcessCampaignsRoute =
     path: '/api/public/hooks/process-campaigns',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedCampaignsIdEditRoute =
+  AuthenticatedCampaignsIdEditRouteImport.update({
+    id: '/edit',
+    path: '/edit',
+    getParentRoute: () => AuthenticatedCampaignsIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -86,9 +93,10 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
+  '/campaigns/$id': typeof AuthenticatedCampaignsIdRouteWithChildren
   '/campaigns/new': typeof AuthenticatedCampaignsNewRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
+  '/campaigns/$id/edit': typeof AuthenticatedCampaignsIdEditRoute
   '/api/public/hooks/process-campaigns': typeof ApiPublicHooksProcessCampaignsRoute
   '/api/public/hooks/track-open': typeof ApiPublicHooksTrackOpenRoute
 }
@@ -98,9 +106,10 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
+  '/campaigns/$id': typeof AuthenticatedCampaignsIdRouteWithChildren
   '/campaigns/new': typeof AuthenticatedCampaignsNewRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
+  '/campaigns/$id/edit': typeof AuthenticatedCampaignsIdEditRoute
   '/api/public/hooks/process-campaigns': typeof ApiPublicHooksProcessCampaignsRoute
   '/api/public/hooks/track-open': typeof ApiPublicHooksTrackOpenRoute
 }
@@ -112,9 +121,10 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
-  '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
+  '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRouteWithChildren
   '/_authenticated/campaigns/new': typeof AuthenticatedCampaignsNewRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
+  '/_authenticated/campaigns/$id/edit': typeof AuthenticatedCampaignsIdEditRoute
   '/api/public/hooks/process-campaigns': typeof ApiPublicHooksProcessCampaignsRoute
   '/api/public/hooks/track-open': typeof ApiPublicHooksTrackOpenRoute
 }
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/campaigns/$id'
     | '/campaigns/new'
     | '/campaigns/'
+    | '/campaigns/$id/edit'
     | '/api/public/hooks/process-campaigns'
     | '/api/public/hooks/track-open'
   fileRoutesByTo: FileRoutesByTo
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/campaigns/$id'
     | '/campaigns/new'
     | '/campaigns'
+    | '/campaigns/$id/edit'
     | '/api/public/hooks/process-campaigns'
     | '/api/public/hooks/track-open'
   id:
@@ -154,6 +166,7 @@ export interface FileRouteTypes {
     | '/_authenticated/campaigns/$id'
     | '/_authenticated/campaigns/new'
     | '/_authenticated/campaigns/'
+    | '/_authenticated/campaigns/$id/edit'
     | '/api/public/hooks/process-campaigns'
     | '/api/public/hooks/track-open'
   fileRoutesById: FileRoutesById
@@ -245,14 +258,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksProcessCampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/campaigns/$id/edit': {
+      id: '/_authenticated/campaigns/$id/edit'
+      path: '/edit'
+      fullPath: '/campaigns/$id/edit'
+      preLoaderRoute: typeof AuthenticatedCampaignsIdEditRouteImport
+      parentRoute: typeof AuthenticatedCampaignsIdRoute
+    }
   }
 }
+
+interface AuthenticatedCampaignsIdRouteChildren {
+  AuthenticatedCampaignsIdEditRoute: typeof AuthenticatedCampaignsIdEditRoute
+}
+
+const AuthenticatedCampaignsIdRouteChildren: AuthenticatedCampaignsIdRouteChildren =
+  {
+    AuthenticatedCampaignsIdEditRoute: AuthenticatedCampaignsIdEditRoute,
+  }
+
+const AuthenticatedCampaignsIdRouteWithChildren =
+  AuthenticatedCampaignsIdRoute._addFileChildren(
+    AuthenticatedCampaignsIdRouteChildren,
+  )
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
-  AuthenticatedCampaignsIdRoute: typeof AuthenticatedCampaignsIdRoute
+  AuthenticatedCampaignsIdRoute: typeof AuthenticatedCampaignsIdRouteWithChildren
   AuthenticatedCampaignsNewRoute: typeof AuthenticatedCampaignsNewRoute
   AuthenticatedCampaignsIndexRoute: typeof AuthenticatedCampaignsIndexRoute
 }
@@ -261,7 +295,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
-  AuthenticatedCampaignsIdRoute: AuthenticatedCampaignsIdRoute,
+  AuthenticatedCampaignsIdRoute: AuthenticatedCampaignsIdRouteWithChildren,
   AuthenticatedCampaignsNewRoute: AuthenticatedCampaignsNewRoute,
   AuthenticatedCampaignsIndexRoute: AuthenticatedCampaignsIndexRoute,
 }
