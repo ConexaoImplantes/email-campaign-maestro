@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Play, Pause, Copy, Paperclip, Pencil } from "lucide-react";
+import { Play, Pause, Copy, Paperclip, Pencil, Download } from "lucide-react";
 
 const campaignQuery = (id: string) =>
   queryOptions({
@@ -198,6 +198,16 @@ function CampaignDetail() {
       </section>
 
       <section className="rounded-xl bg-brand-surface overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-brand-surface-hover/40">
+          <h2 className="text-sm font-semibold">Destinatários</h2>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => downloadCampaignCsv(c.title, { sent, opened, failed, pending }, recipients)}
+          >
+            <Download className="h-4 w-4 mr-1.5" /> Baixar CSV
+          </Button>
+        </div>
         <div className="max-h-[500px] overflow-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-brand-surface z-10">
@@ -279,4 +289,43 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+type CsvRecipient = { email: string; name: string | null; status: string; opened_at: string | null };
+
+function csvEscape(v: unknown): string {
+  const s = v === null || v === undefined ? "" : String(v);
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+function downloadCampaignCsv(
+  title: string,
+  metrics: { sent: number; opened: number; failed: number; pending: number },
+  recipients: CsvRecipient[],
+) {
+  const statusLabel: Record<string, string> = { pending: "Pendente", sent: "Enviado", failed: "Falhou" };
+  const lines: string[] = [];
+  lines.push(["ENVIADOS", "ABERTOS", "FALHAS", "PENDENTES"].join(","));
+  lines.push([metrics.sent, metrics.opened, metrics.failed, metrics.pending].map(csvEscape).join(","));
+  lines.push("");
+  lines.push(["EMAIL", "NOME", "STATUS", "ABERTO"].join(","));
+  for (const r of recipients) {
+    lines.push([
+      csvEscape(r.email),
+      csvEscape(r.name ?? ""),
+      csvEscape(statusLabel[r.status] ?? r.status),
+      csvEscape(r.opened_at ? "Sim" : "Não"),
+    ].join(","));
+  }
+  const csv = "\uFEFF" + lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "campanha";
+  a.href = url;
+  a.download = `metricas-${slug}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
