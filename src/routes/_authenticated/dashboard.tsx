@@ -201,7 +201,7 @@ function Dashboard() {
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button
-                        onClick={(e) => e.preventDefault()}
+                        type="button"
                         className="text-muted-foreground hover:text-destructive p-1"
                         aria-label="Excluir"
                       >
