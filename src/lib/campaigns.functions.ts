@@ -284,15 +284,24 @@ export const listCampaigns = createServerFn({ method: "GET" })
       const { data: profs } = await db.from("profiles").select("id, email").in("id", ids);
       for (const p of profs ?? []) ownerMap[p.id] = p.email;
     }
-    return rows.map((r: any) => ({
-      id: r.id,
-      title: r.title,
-      subject: r.subject,
-      status: r.status,
-      total_recipients: r.total_recipients,
-      created_at: r.created_at,
+    const out: Array<{
+      id: string;
+      title: string;
+      subject: string;
+      status: string;
+      total_recipients: number;
+      created_at: string;
+      owner_email: string | null;
+    }> = rows.map((r: any) => ({
+      id: r.id as string,
+      title: r.title as string,
+      subject: r.subject as string,
+      status: r.status as string,
+      total_recipients: r.total_recipients as number,
+      created_at: r.created_at as string,
       owner_email: admin ? ownerMap[r.user_id] ?? null : null,
     }));
+    return out;
   });
 
 export const getCampaign = createServerFn({ method: "GET" })
