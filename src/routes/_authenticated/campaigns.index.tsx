@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Copy } from "lucide-react";
+import { Plus, Trash2, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -112,12 +112,23 @@ function CampaignsList() {
               <Link to="/campaigns/$id" params={{ id: c.id }} className="flex-1 min-w-0">
                 <p className="font-medium truncate">{c.title}</p>
                 <p className="text-xs text-muted-foreground truncate">
+                  {c.owner_email ? <span className="text-brand-accent">{c.owner_email}</span> : null}
+                  {c.owner_email ? " · " : ""}
                   {c.subject} · {c.total_recipients} destinatários ·{" "}
                   {new Date(c.created_at).toLocaleDateString("pt-BR")}
                 </p>
               </Link>
               <div className="flex items-center gap-3">
                 <StatusBadge status={c.status} />
+                <Link
+                  to="/campaigns/$id/edit"
+                  params={{ id: c.id }}
+                  className="text-muted-foreground hover:text-brand-accent p-1"
+                  aria-label="Editar"
+                  title="Editar campanha"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Link>
                 <button
                   onClick={async (e) => {
                     e.preventDefault();

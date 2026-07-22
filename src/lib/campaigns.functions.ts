@@ -1,6 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
+
+type DB = SupabaseClient<Database>;
+
+// ---------- Admin helpers ----------
+
+async function isAdminUser(supabase: DB, userId: string): Promise<boolean> {
+  const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+  return Boolean(data);
+}
+
+/**
+ * Returns a supabase client to use for the request. Admins get the service-role
+ * client so they can CRUD any user's data; regular users keep their RLS-scoped
+ * client.
+ */
+async function resolveDb(supabase: DB, userId: string): Promise<{ db: DB; admin: boolean }> {
+  const admin = await isAdminUser(supabase, userId);
+  if (admin) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return { db: supabaseAdmin as unknown as DB, admin: true };
+  }
+  return { db: supabase, admin: false };
+}
 
 // ---------- Profile / SMTP ----------
 
@@ -18,7 +43,6 @@ export const getProfile = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
 
     const userConfigured = Boolean(data?.smtp_pass_encrypted);
-    // Fall back to global default SMTP if the user has none of their own.
     let defaultConfigured = false;
     if (!userConfigured) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -138,6 +162,7 @@ const createCampaignInput = z.object({
     )
     .max(20_000)
     .default([]),
+  owner_user_id: z.string().uuid().optional(),
 });
 
 export const createCampaign = createServerFn({ method: "POST" })
@@ -145,11 +170,14 @@ export const createCampaign = createServerFn({ method: "POST" })
   .inputValidator((v) => createCampaignInput.parse(v))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertApproved(supabase, userId);
-    const { data: camp, error } = await supabase
+    const { db, admin } = await resolveDb(supabase, userId);
+    // Admin can create on behalf of another user
+    const ownerId = admin && data.owner_user_id ? data.owner_user_id : userId;
+    if (!admin) await assertApproved(supabase, userId);
+    const { data: camp, error } = await db
       .from("campaigns")
       .insert({
-        user_id: userId,
+        user_id: ownerId,
         title: data.title,
         subject: data.subject,
         content_type: data.content_type,
@@ -160,7 +188,6 @@ export const createCampaign = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     if (data.recipients.length > 0) {
-      // Dedupe by email
       const seen = new Set<string>();
       const rows = data.recipients
         .filter((r) => {
@@ -174,18 +201,46 @@ export const createCampaign = createServerFn({ method: "POST" })
           email: r.email,
           name: r.name ?? null,
         }));
-      // Insert in chunks of 500
       for (let i = 0; i < rows.length; i += 500) {
         const chunk = rows.slice(i, i + 500);
-        const { error: e2 } = await supabase.from("recipients").insert(chunk);
+        const { error: e2 } = await db.from("recipients").insert(chunk);
         if (e2) throw new Error(e2.message);
       }
-      await supabase
+      await db
         .from("campaigns")
         .update({ total_recipients: rows.length })
         .eq("id", camp.id);
     }
     return { id: camp.id };
+  });
+
+const updateCampaignInput = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).max(200),
+  subject: z.string().min(1).max(300),
+  content_type: z.enum(["richtext", "html"]),
+  body_content: z.string().max(500_000),
+});
+
+export const updateCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v) => updateCampaignInput.parse(v))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { db, admin } = await resolveDb(supabase, userId);
+    let q = db
+      .from("campaigns")
+      .update({
+        title: data.title,
+        subject: data.subject,
+        content_type: data.content_type,
+        body_content: data.body_content,
+      })
+      .eq("id", data.id);
+    if (!admin) q = q.eq("user_id", userId);
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const setCampaignStatus = createServerFn({ method: "POST" })
@@ -200,12 +255,11 @@ export const setCampaignStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    if (data.status === "processing") await assertApproved(supabase, userId);
-    const { error } = await supabase
-      .from("campaigns")
-      .update({ status: data.status })
-      .eq("id", data.id)
-      .eq("user_id", userId);
+    const { db, admin } = await resolveDb(supabase, userId);
+    if (!admin && data.status === "processing") await assertApproved(supabase, userId);
+    let q = db.from("campaigns").update({ status: data.status }).eq("id", data.id);
+    if (!admin) q = q.eq("user_id", userId);
+    const { error } = await q;
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -214,14 +268,40 @@ export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data, error } = await supabase
+    const { db, admin } = await resolveDb(supabase, userId);
+    let q = db
       .from("campaigns")
-      .select("id, title, subject, status, total_recipients, created_at")
-      .eq("user_id", userId)
+      .select("id, title, subject, status, total_recipients, created_at, user_id")
       .order("created_at", { ascending: false })
-      .limit(100);
+      .limit(500);
+    if (!admin) q = q.eq("user_id", userId);
+    const { data, error } = await q;
     if (error) throw new Error(error.message);
-    return data ?? [];
+    const rows = data ?? [];
+    let ownerMap: Record<string, string | null> = {};
+    if (admin && rows.length > 0) {
+      const ids = Array.from(new Set(rows.map((r: any) => r.user_id)));
+      const { data: profs } = await db.from("profiles").select("id, email").in("id", ids);
+      for (const p of profs ?? []) ownerMap[p.id] = p.email;
+    }
+    const out: Array<{
+      id: string;
+      title: string;
+      subject: string;
+      status: string;
+      total_recipients: number;
+      created_at: string;
+      owner_email: string | null;
+    }> = rows.map((r: any) => ({
+      id: r.id as string,
+      title: r.title as string,
+      subject: r.subject as string,
+      status: r.status as string,
+      total_recipients: r.total_recipients as number,
+      created_at: r.created_at as string,
+      owner_email: admin ? ownerMap[r.user_id] ?? null : null,
+    }));
+    return out;
   });
 
 export const getCampaign = createServerFn({ method: "GET" })
@@ -229,22 +309,27 @@ export const getCampaign = createServerFn({ method: "GET" })
   .inputValidator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: c, error } = await supabase
-      .from("campaigns")
-      .select("*")
-      .eq("id", data.id)
-      .eq("user_id", userId)
-      .maybeSingle();
+    const { db, admin } = await resolveDb(supabase, userId);
+    let q = db.from("campaigns").select("*").eq("id", data.id);
+    if (!admin) q = q.eq("user_id", userId);
+    const { data: c, error } = await q.maybeSingle();
     if (error) throw new Error(error.message);
-    return c;
+    if (!c) return null;
+    let owner_email: string | null = null;
+    if (admin) {
+      const { data: p } = await db.from("profiles").select("email").eq("id", c.user_id).maybeSingle();
+      owner_email = p?.email ?? null;
+    }
+    return { ...c, owner_email };
   });
 
 export const getRecipients = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v) => z.object({ campaign_id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { data: rows, error } = await supabase
+    const { supabase, userId } = context;
+    const { db } = await resolveDb(supabase, userId);
+    const { data: rows, error } = await db
       .from("recipients")
       .select("id, name, email, status, error_message, sent_at, opened_at")
       .eq("campaign_id", data.campaign_id)
@@ -264,7 +349,6 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       .eq("id", userId)
       .maybeSingle();
 
-    // Aggregate via RPC would be nicer; we do quick counts here.
     const { data: campaignIds } = await supabase
       .from("campaigns")
       .select("id")
@@ -314,11 +398,10 @@ export const deleteCampaign = createServerFn({ method: "POST" })
   .inputValidator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { error } = await supabase
-      .from("campaigns")
-      .delete()
-      .eq("id", data.id)
-      .eq("user_id", userId);
+    const { db, admin } = await resolveDb(supabase, userId);
+    let q = db.from("campaigns").delete().eq("id", data.id);
+    if (!admin) q = q.eq("user_id", userId);
+    const { error } = await q;
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -340,14 +423,12 @@ export const addAttachment = createServerFn({ method: "POST" })
   .inputValidator((v) => addAttachmentInput.parse(v))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: camp } = await supabase
-      .from("campaigns")
-      .select("id")
-      .eq("id", data.campaign_id)
-      .eq("user_id", userId)
-      .maybeSingle();
+    const { db, admin } = await resolveDb(supabase, userId);
+    let cq = db.from("campaigns").select("id").eq("id", data.campaign_id);
+    if (!admin) cq = cq.eq("user_id", userId);
+    const { data: camp } = await cq.maybeSingle();
     if (!camp) throw new Error("Campanha não encontrada");
-    const { data: row, error } = await supabase
+    const { data: row, error } = await db
       .from("campaign_attachments")
       .insert({
         campaign_id: data.campaign_id,
@@ -366,8 +447,9 @@ export const listAttachments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v) => z.object({ campaign_id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { data: rows, error } = await supabase
+    const { supabase, userId } = context;
+    const { db } = await resolveDb(supabase, userId);
+    const { data: rows, error } = await db
       .from("campaign_attachments")
       .select("id, filename, mime_type, size_bytes, created_at")
       .eq("campaign_id", data.campaign_id)
@@ -380,11 +462,9 @@ export const removeAttachment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { error } = await supabase
-      .from("campaign_attachments")
-      .delete()
-      .eq("id", data.id);
+    const { supabase, userId } = context;
+    const { db } = await resolveDb(supabase, userId);
+    const { error } = await db.from("campaign_attachments").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -396,19 +476,23 @@ export const cloneCampaign = createServerFn({ method: "POST" })
   .inputValidator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: src, error: e1 } = await supabase
+    const { db, admin } = await resolveDb(supabase, userId);
+    let srcQ = db
       .from("campaigns")
-      .select("title, subject, content_type, body_content")
-      .eq("id", data.id)
-      .eq("user_id", userId)
-      .maybeSingle();
+      .select("title, subject, content_type, body_content, user_id")
+      .eq("id", data.id);
+    if (!admin) srcQ = srcQ.eq("user_id", userId);
+    const { data: src, error: e1 } = await srcQ.maybeSingle();
     if (e1) throw new Error(e1.message);
     if (!src) throw new Error("Campanha não encontrada");
 
-    const { data: clone, error: e2 } = await supabase
+    // Admin clones preserve original owner; regular users own their clones.
+    const ownerId = admin ? src.user_id : userId;
+
+    const { data: clone, error: e2 } = await db
       .from("campaigns")
       .insert({
-        user_id: userId,
+        user_id: ownerId,
         title: `${src.title} (cópia)`,
         subject: src.subject,
         content_type: src.content_type,
@@ -420,12 +504,11 @@ export const cloneCampaign = createServerFn({ method: "POST" })
       .single();
     if (e2) throw new Error(e2.message);
 
-    // Copy recipients as fresh pending rows
-    const { data: rec } = await supabase
+    const { data: rec } = await db
       .from("recipients")
       .select("email, name")
       .eq("campaign_id", data.id);
-    const rows = (rec ?? []).map((r) => ({
+    const rows = (rec ?? []).map((r: any) => ({
       campaign_id: clone.id,
       email: r.email,
       name: r.name ?? null,
@@ -433,23 +516,19 @@ export const cloneCampaign = createServerFn({ method: "POST" })
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i + 500);
       if (chunk.length === 0) break;
-      const { error: e3 } = await supabase.from("recipients").insert(chunk);
+      const { error: e3 } = await db.from("recipients").insert(chunk);
       if (e3) throw new Error(e3.message);
     }
     if (rows.length > 0) {
-      await supabase
-        .from("campaigns")
-        .update({ total_recipients: rows.length })
-        .eq("id", clone.id);
+      await db.from("campaigns").update({ total_recipients: rows.length }).eq("id", clone.id);
     }
 
-    // Copy attachments
-    const { data: atts } = await supabase
+    const { data: atts } = await db
       .from("campaign_attachments")
       .select("filename, mime_type, size_bytes, content_base64")
       .eq("campaign_id", data.id);
     for (const a of atts ?? []) {
-      await supabase.from("campaign_attachments").insert({
+      await db.from("campaign_attachments").insert({
         campaign_id: clone.id,
         filename: a.filename,
         mime_type: a.mime_type,

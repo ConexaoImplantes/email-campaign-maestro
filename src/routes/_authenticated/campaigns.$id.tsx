@@ -1,4 +1,4 @@
-import { createFileRoute, notFound, useRouter, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter, useNavigate, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef } from "react";
@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Play, Pause, Copy, Paperclip } from "lucide-react";
+import { Play, Pause, Copy, Paperclip, Pencil } from "lucide-react";
 
 const campaignQuery = (id: string) =>
   queryOptions({
@@ -112,6 +112,11 @@ function CampaignDetail() {
         <div>
           <h1 className="text-3xl font-semibold">{c.title}</h1>
           <p className="text-sm text-muted-foreground mt-1">{c.subject}</p>
+          {(c as { owner_email?: string | null }).owner_email && (
+            <p className="text-xs text-brand-accent mt-1">
+              Proprietário: {(c as { owner_email?: string | null }).owner_email}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={c.status as string} />
@@ -140,6 +145,11 @@ function CampaignDetail() {
               <Pause className="h-4 w-4 mr-1" /> Pausar
             </Button>
           ) : null}
+          <Link to="/campaigns/$id/edit" params={{ id }}>
+            <Button size="sm" variant="outline">
+              <Pencil className="h-4 w-4 mr-1" /> Editar
+            </Button>
+          </Link>
           <Button
             size="sm"
             variant="outline"
