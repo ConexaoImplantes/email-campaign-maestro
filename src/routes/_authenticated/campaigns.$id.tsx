@@ -145,6 +145,11 @@ function CampaignDetail() {
               <Pause className="h-4 w-4 mr-1" /> Pausar
             </Button>
           ) : null}
+          <Link to="/campaigns/$id/edit" params={{ id }}>
+            <Button size="sm" variant="outline">
+              <Pencil className="h-4 w-4 mr-1" /> Editar
+            </Button>
+          </Link>
           <Button
             size="sm"
             variant="outline"
