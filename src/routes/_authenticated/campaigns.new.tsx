@@ -190,13 +190,26 @@ function NewCampaign() {
               </p>
             </TabsContent>
             <TabsContent value="html" className="pt-3">
-              <Textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={14}
-                className="font-mono text-xs"
-                placeholder="<html><body>...</body></html>"
-              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <Textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={14}
+                  className="font-mono text-xs"
+                  placeholder="<html><body>...</body></html>"
+                />
+                <div className="rounded-md border border-brand-surface-hover/40 overflow-hidden flex flex-col">
+                  <div className="px-3 py-1.5 text-xs text-muted-foreground bg-brand-surface border-b border-brand-surface-hover/40">
+                    Preview
+                  </div>
+                  <iframe
+                    title="Preview HTML"
+                    srcDoc={body || "<p style='font-family:sans-serif;color:#999;padding:12px'>Preview aparecerá aqui…</p>"}
+                    sandbox=""
+                    className="w-full flex-1 min-h-[320px] bg-white"
+                  />
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </div>
