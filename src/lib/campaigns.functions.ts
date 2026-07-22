@@ -1,10 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
+
+type DB = SupabaseClient<Database>;
 
 // ---------- Admin helpers ----------
 
-async function isAdminUser(supabase: any, userId: string): Promise<boolean> {
+async function isAdminUser(supabase: DB, userId: string): Promise<boolean> {
   const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   return Boolean(data);
 }
@@ -14,11 +18,11 @@ async function isAdminUser(supabase: any, userId: string): Promise<boolean> {
  * client so they can CRUD any user's data; regular users keep their RLS-scoped
  * client.
  */
-async function resolveDb(supabase: any, userId: string): Promise<{ db: any; admin: boolean }> {
+async function resolveDb(supabase: DB, userId: string): Promise<{ db: DB; admin: boolean }> {
   const admin = await isAdminUser(supabase, userId);
   if (admin) {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    return { db: supabaseAdmin, admin: true };
+    return { db: supabaseAdmin as unknown as DB, admin: true };
   }
   return { db: supabase, admin: false };
 }
