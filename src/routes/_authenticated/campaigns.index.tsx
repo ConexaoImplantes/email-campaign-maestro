@@ -230,21 +230,34 @@ function EditCampaignDialog({
   onSaved: () => void | Promise<void>;
 }) {
   const update = useServerFn(updateCampaign);
+  const fetchCampaign = useServerFn(getCampaign);
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [contentType, setContentType] = useState<"richtext" | "html">("html");
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Sync state when a new campaign is opened
-  useMemo(() => {
-    if (campaign) {
-      setTitle(campaign.title ?? "");
-      setSubject(campaign.subject ?? "");
-      setContentType(((campaign as { content_type?: string }).content_type as "richtext" | "html") ?? "html");
-      setBody((campaign as { body_content?: string }).body_content ?? "");
-    }
-  }, [campaign]);
+  const currentId = campaign?.id ?? null;
+
+  useEffect(() => {
+    if (!currentId) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchCampaign({ data: { id: currentId } })
+      .then((full) => {
+        if (cancelled || !full) return;
+        setTitle(full.title ?? "");
+        setSubject(full.subject ?? "");
+        setContentType(((full.content_type as "richtext" | "html") ?? "html"));
+        setBody(full.body_content ?? "");
+      })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Falha ao carregar"))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [currentId, fetchCampaign]);
 
   const onSave = async () => {
     if (!campaign) return;
