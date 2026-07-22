@@ -327,9 +327,9 @@ function EditCampaignDialog({
           <Button
             className="gradient-brand text-primary-foreground"
             onClick={onSave}
-            disabled={saving}
+            disabled={saving || loading}
           >
-            {saving ? "Salvando…" : "Salvar"}
+            {saving ? "Salvando…" : loading ? "Carregando…" : "Salvar"}
           </Button>
         </DialogFooter>
       </DialogContent>
