@@ -14,18 +14,26 @@ async function assertAdmin(userId: string) {
   if (!data) throw new Error("Acesso negado — somente super admin.");
 }
 
-export const isAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    return { isAdmin: Boolean(data) };
+export const isAdmin = createServerFn({ method: "GET" }).handler(async () => {
+  const { getRequestHeader } = await import("@tanstack/react-start/server");
+  const auth = getRequestHeader("authorization");
+  if (!auth?.startsWith("Bearer ")) return { isAdmin: false };
+  const token = auth.slice(7);
+  const { createClient } = await import("@supabase/supabase-js");
+  const client = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
+  const { data: userData } = await client.auth.getUser(token);
+  if (!userData?.user) return { isAdmin: false };
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userData.user.id)
+    .eq("role", "admin")
+    .maybeSingle();
+  return { isAdmin: Boolean(data) };
+});
 
 export const adminListUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
