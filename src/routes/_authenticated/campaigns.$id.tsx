@@ -1,4 +1,4 @@
-import { createFileRoute, notFound, useRouter, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter, useNavigate, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef } from "react";
@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Play, Pause, Copy, Paperclip } from "lucide-react";
+import { Play, Pause, Copy, Paperclip, Pencil } from "lucide-react";
 
 const campaignQuery = (id: string) =>
   queryOptions({
