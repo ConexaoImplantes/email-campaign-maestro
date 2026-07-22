@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Copy } from "lucide-react";
+import { Plus, Trash2, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
