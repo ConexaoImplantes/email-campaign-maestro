@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listCampaigns, deleteCampaign, cloneCampaign, updateCampaign } from "@/lib/campaigns.functions";
+import { listCampaigns, deleteCampaign, cloneCampaign, updateCampaign, getCampaign } from "@/lib/campaigns.functions";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
