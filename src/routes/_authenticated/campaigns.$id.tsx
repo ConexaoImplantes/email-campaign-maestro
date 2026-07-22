@@ -198,6 +198,16 @@ function CampaignDetail() {
       </section>
 
       <section className="rounded-xl bg-brand-surface overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-brand-surface-hover/40">
+          <h2 className="text-sm font-semibold">Destinatários</h2>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => downloadCampaignCsv(c.title, { sent, opened, failed, pending }, recipients)}
+          >
+            <Download className="h-4 w-4 mr-1.5" /> Baixar CSV
+          </Button>
+        </div>
         <div className="max-h-[500px] overflow-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-brand-surface z-10">
