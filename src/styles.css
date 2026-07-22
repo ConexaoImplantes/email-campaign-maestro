@@ -217,8 +217,8 @@
     scrollbar-width: thin;
   }
   *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 4px;
+    height: 4px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
@@ -226,7 +226,8 @@
   *::-webkit-scrollbar-thumb {
     background: var(--brand-accent);
     border-radius: 9999px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }
