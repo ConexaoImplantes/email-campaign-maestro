@@ -112,6 +112,11 @@ function CampaignDetail() {
         <div>
           <h1 className="text-3xl font-semibold">{c.title}</h1>
           <p className="text-sm text-muted-foreground mt-1">{c.subject}</p>
+          {(c as { owner_email?: string | null }).owner_email && (
+            <p className="text-xs text-brand-accent mt-1">
+              Proprietário: {(c as { owner_email?: string | null }).owner_email}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={c.status as string} />
